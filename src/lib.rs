@@ -349,10 +349,12 @@ pub grammar arithmetic() for str {
         --
         v:var() l:time_interval() {
             let l = l.strip_prefix("#").unwrap();
+            let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
             Expression::TimeInterval(Box::new(Expression::Var(v.to_owned())), l.to_owned())
         }
         v:number() l:time_interval() {
             let l = l.strip_prefix("#").unwrap();
+            let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
             Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(v.parse::<i128>().unwrap()))), l.to_owned())
         }
         l:bool() {Expression::Atomic(Value::Bool(l.parse::<bool>().unwrap()))}

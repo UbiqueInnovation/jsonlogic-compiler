@@ -3,68 +3,64 @@ use serde_json::json;
 pub mod parser;
 pub use parser::arithmetic;
 // Copyright (c) 2021 Patrick Amrein <amrein@ubique.ch>
-// 
+//
 // This software is released under the MIT License.
 // https://opensource.org/licenses/MIT
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Expression {
-    Conditional{condition: Box<Expression>, inner: Box<Expression>, other: Option<Box<Expression>>},
+    Conditional {
+        condition: Box<Expression>,
+        inner: Box<Expression>,
+        other: Option<Box<Expression>>,
+    },
     Not(Box<Expression>),
     Var(String),
     Operation(Operation),
     Comparison(Comparison),
     Atomic(Value),
-    TimeInterval(Box<Expression>, String)
+    TimeInterval(Box<Expression>, String),
 }
 
 impl Expression {
     pub fn to_json_logic(&self) -> serde_json::Value {
         match self {
-            Expression::Conditional{ condition, inner, other } => {
+            Expression::Conditional {
+                condition,
+                inner,
+                other,
+            } => {
                 let cond = condition.to_json_logic();
                 let inner = inner.to_json_logic();
                 if let Some(other) = other.as_ref() {
                     let other = other.to_json_logic();
-                     return json!({
-                        
+                    return json!({
+
                         "if" : [
                             cond,
                             inner,
                             other
                         ]
-                    })
+                    });
                 } else {
                     return json!({
                         "if" : [
                             cond,
                             inner
                         ]
-                    })
+                    });
                 }
             }
             Expression::Var(v) => {
-                json!({
-                    "var" : [v]
-                })
+                json!({ "var": [v] })
             }
-            Expression::Operation(a) => {
-                a.to_json_logic()
-            }
+            Expression::Operation(a) => a.to_json_logic(),
             Expression::Not(i) => {
                 let inner = i.to_json_logic();
-                json!({
-                    "!" : [
-                        inner
-                    ]
-                })
+                json!({ "!": [inner] })
             }
-            Expression::Comparison(comp) => {
-                comp.to_json_logic()
-            }
-            Expression::Atomic(inner) => {
-                inner.to_serde_json()
-            }
+            Expression::Comparison(comp) => comp.to_json_logic(),
+            Expression::Atomic(inner) => inner.to_serde_json(),
             _ => {
                 json!({})
             }
@@ -72,9 +68,8 @@ impl Expression {
     }
 }
 impl std::fmt::Display for Expression {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> 
-    {
-         let exp = serde_json::to_string_pretty(&self.to_json_logic()).unwrap_or("".to_string());
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let exp = serde_json::to_string_pretty(&self.to_json_logic()).unwrap_or("".to_string());
         let _ = fmt.write_str(&exp);
         Ok(())
     }
@@ -85,7 +80,7 @@ pub enum Value {
     Bool(bool),
     String(String),
     Int(i128),
-    Float(f64)
+    Float(f64),
 }
 
 impl Value {
@@ -94,194 +89,121 @@ impl Value {
             &Self::Bool(b) => serde_json::Value::Bool(b),
             Self::String(s) => serde_json::Value::String(s.to_owned()),
             &Self::Int(i) => serde_json::Value::Number((i as i64).into()),
-            &Self::Float(f) => serde_json::Value::Number(serde_json::value::Number::from_f64(f).unwrap()),
+            &Self::Float(f) => {
+                serde_json::Value::Number(serde_json::value::Number::from_f64(f).unwrap())
+            }
         }
     }
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Comparison {
-    LessThan(Box<Expression>,Box<Expression>),
-    LessThanEqual(Box<Expression>,Box<Expression>),
-    GreaterThan(Box<Expression>,Box<Expression>),
-    GreaterThanEqual(Box<Expression>,Box<Expression>),
+    LessThan(Box<Expression>, Box<Expression>),
+    LessThanEqual(Box<Expression>, Box<Expression>),
+    GreaterThan(Box<Expression>, Box<Expression>),
+    GreaterThanEqual(Box<Expression>, Box<Expression>),
     Equal(Box<Expression>, Box<Expression>),
     ExactEqual(Box<Expression>, Box<Expression>),
     NotEqual(Box<Expression>, Box<Expression>),
-    NotExactEqual(Box<Expression>, Box<Expression>)
+    NotExactEqual(Box<Expression>, Box<Expression>),
+}
+
+impl std::fmt::Display for Comparison {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Comparison::LessThan(_, _) => f.write_str("<"),
+            Comparison::LessThanEqual(_, _) => f.write_str("<="),
+            Comparison::GreaterThan(_, _) => f.write_str(">"),
+            Comparison::GreaterThanEqual(_, _) => f.write_str(">="),
+            Comparison::Equal(_, _) => f.write_str("=="),
+            Comparison::ExactEqual(_, _) => f.write_str("==="),
+            Comparison::NotEqual(_, _) => f.write_str("!="),
+            Comparison::NotExactEqual(_, _) => f.write_str("!=="),
+        }
+    }
 }
 
 impl Comparison {
     pub fn to_json_logic(&self) -> serde_json::Value {
         match self {
-            Self::LessThan(a, b) => {
+            Comparison::LessThan(a, b)
+            | Comparison::LessThanEqual(a, b)
+            | Comparison::GreaterThan(a, b)
+            | Comparison::GreaterThanEqual(a, b)
+            | Comparison::Equal(a, b)
+            | Comparison::ExactEqual(a, b)
+            | Comparison::NotEqual(a, b)
+            | Comparison::NotExactEqual(a, b) => {
                 let a = a.to_json_logic();
                 let b = b.to_json_logic();
+                let token = self.to_string();
                 json!({
-                    "<" : [
+                    token: [
                         a,
                         b
                     ]
-                })
-            },
-             Self::LessThanEqual(a, b) => {
-                let a = a.to_json_logic();
-                let b = b.to_json_logic();
-                json!({
-                    "<=" : [
-                        a,
-                        b
-                    ]
-                })
-            },
-             Self::GreaterThan(a, b) => {
-                let a = a.to_json_logic();
-                let b = b.to_json_logic();
-                json!({
-                    ">" : [
-                        a,
-                        b
-                    ]
-                })
-            }
-            Self::GreaterThanEqual(a, b) => {
-                let a = a.to_json_logic();
-                let b = b.to_json_logic();
-                json!({
-                    ">=" : [
-                        a,
-                        b
-                    ]
-                })
-            }
-            Self::Equal(a, b) => {
-                let a = a.to_json_logic();
-                let b = b.to_json_logic();
-                json!({
-                    "==" : [
-                        a,
-                        b
-                    ]
-                })
-            }
-            Self::ExactEqual(a, b) => {
-                let a = a.to_json_logic();
-                let b = b.to_json_logic();
-                json!({
-                    "===" : [
-                        a,
-                        b
-                    ]
-                })
-            },
-            Self::NotEqual(a, b) => {
-                let a = a.to_json_logic();
-                let b = b.to_json_logic();
-                json!({
-                    "!=" : [
-                        a,
-                        b
-                    ]
-                })
-            }
-            Self::NotExactEqual(a, b) => {
-                let a = a.to_json_logic();
-                let b = b.to_json_logic();
-                json!({
-                    "!==" : [
-                        a,
-                        b
-                    ]
-                })
+                }
+
+                )
             }
         }
     }
 }
-#[derive(Clone, PartialEq,  Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum Operation {
     Plus(Box<Expression>, Box<Expression>),
     Minus(Box<Expression>, Box<Expression>),
     PlusTime(Box<Expression>, Box<Expression>),
     MinusTime(Box<Expression>, Box<Expression>),
     And(Box<Expression>, Box<Expression>),
-    Or(Box<Expression>, Box<Expression>),  
+    Or(Box<Expression>, Box<Expression>),
+}
+
+impl std::fmt::Display for Operation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Operation::Plus(_, _) => f.write_str("+"),
+            Operation::Minus(_, _) => f.write_str("-"),
+            Operation::PlusTime(_, _) => f.write_str("plusTime"),
+            Operation::MinusTime(_, _) => f.write_str("minusTime"),
+            Operation::And(_, _) => f.write_str("and"),
+            Operation::Or(_, _) => f.write_str("or"),
+        }
+    }
 }
 
 impl Operation {
     pub fn to_json_logic(&self) -> serde_json::Value {
         match self {
-            Self::Plus(a, b) => {
+            Operation::Plus(a, b)
+            | Operation::Minus(a, b)
+            | Operation::And(a, b)
+            | Operation::Or(a, b) => {
                 let a = a.to_json_logic();
                 let b = b.to_json_logic();
+                let token = self.to_string();
                 json!({
-                    "+" : [
+                    token : [
                         a,
                         b
                     ]
                 })
             }
-            Self::Minus(a, b) => {
-                let a = a.to_json_logic();
-                let b = b.to_json_logic();
-                json!({
-                    "-" : [
-                        a,
-                        b
-                    ]
-                })
-            }
-            Self::And(a, b) => {
-                let a = a.to_json_logic();
-                let b = b.to_json_logic();
-                json!({
-                    "and" : [
-                        a,
-                        b
-                    ]
-                })
-            }
-            Self::Or(a, b) => {
-                let a = a.to_json_logic();
-                let b = b.to_json_logic();
-                json!({
-                    "or" : [
-                        a,
-                        b
-                    ]
-                })
-            }
-            Self::PlusTime(a,b) => {
-                match b.as_ref() {
-                    Expression::TimeInterval(amount, unit) => {
-                        let a = a.to_json_logic();
-                        let amount = amount.to_json_logic();
-                        json!({
-                            "plusTime" : [
-                                a,
-                                amount,
-                                unit
-                            ]
-                        })
-                    },
-                    _ => json!({})
+            Self::PlusTime(a, b) | Self::MinusTime(a, b) => match b.as_ref() {
+                Expression::TimeInterval(amount, unit) => {
+                    let a = a.to_json_logic();
+                    let amount = amount.to_json_logic();
+                    let token = self.to_string();
+                    json!({
+                        token : [
+                            a,
+                            amount,
+                            unit
+                        ]
+                    })
                 }
-            }
-            Self::MinusTime(a,b) => {
-                match b.as_ref() {
-                    Expression::TimeInterval(amount, unit) => {
-                        let a = a.to_json_logic();
-                        let amount = amount.to_json_logic();
-                        json!({
-                            "minusTime" : [
-                                a,
-                                amount,
-                                unit
-                            ]
-                        })
-                    },
-                    _ => json!({})
-                }
-            }
+                _ => json!({}),
+            },
         }
-    } 
+    }
 }

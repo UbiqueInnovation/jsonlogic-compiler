@@ -34,6 +34,16 @@ pub grammar arithmetic() for str {
 
 
     rule operation() -> Expression = precedence!{
+        v:var() null_coercion() f:float() {
+            Expression::VarWithDefault(v.to_owned(),Value::Float(f.parse::<f64>().unwrap()))
+        }
+        v:var() null_coercion() l:number() {
+             Expression::VarWithDefault(v.to_owned(),Value::Int(l.parse::<i128>().unwrap()))
+        }
+        v:var() null_coercion() "\"" s:string()"\"" {
+             Expression::VarWithDefault(v.to_owned(),Value::String(s.to_owned()))
+        }
+        --
         x:(@) or() y:@ { Expression::Operation(Operation::Or(Box::new(x), Box::new(y))) }
         --
         x:(@) and() y:@ { Expression::Operation(Operation::And(Box::new(x), Box::new(y))) }
@@ -71,16 +81,6 @@ pub grammar arithmetic() for str {
         x:(@) eeq() y:@ { Expression::Comparison(Comparison::ExactEqual(Box::new(x), Box::new(y))) }
         x:(@) ne() y:@ { Expression::Comparison(Comparison::NotEqual(Box::new(x), Box::new(y))) }
         x:(@) ene() y:@ { Expression::Comparison(Comparison::NotExactEqual(Box::new(x), Box::new(y))) }
-        --
-         v:var() null_coercion() f:float() {
-            Expression::VarWithDefault(v.to_owned(),Value::Float(f.parse::<f64>().unwrap()))
-        }
-        v:var() null_coercion() l:number() {
-             Expression::VarWithDefault(v.to_owned(),Value::Int(l.parse::<i128>().unwrap()))
-        }
-        v:var() null_coercion() "\"" s:string()"\"" {
-             Expression::VarWithDefault(v.to_owned(),Value::String(s.to_owned()))
-        }
         --
         v:var() l:time_interval() {
             let l = l.strip_prefix("#").unwrap();

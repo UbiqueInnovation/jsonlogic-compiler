@@ -178,7 +178,7 @@ impl std::fmt::Display for Operation {
 }
 
 impl Operation {
-    pub fn extract_inner_if_same<'other>(&'other self, other: &'other Box<Expression>, storage : &mut Vec<serde_json::Value>) {
+    fn extract_inner_if_same<'other>(&'other self, other: &'other Box<Expression>, storage : &mut Vec<serde_json::Value>) {
         match (self, other.as_ref())  {
             (Operation::Plus(_, _),Expression::Operation(Operation::Plus(a, b)))
            

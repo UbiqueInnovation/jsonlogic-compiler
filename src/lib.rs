@@ -178,20 +178,33 @@ impl std::fmt::Display for Operation {
 }
 
 impl Operation {
+    pub fn extract_inner_if_same<'other>(&'other self, other: &'other Box<Expression>, storage : &mut Vec<serde_json::Value>) {
+        match (self, other.as_ref())  {
+            (Operation::Plus(_, _),Expression::Operation(Operation::Plus(a, b)))
+            | (Operation::Minus(_, _),Expression::Operation(Operation::Minus(a, b)))
+            |(Operation::And(_, _),Expression::Operation(Operation::And(a, b)))
+            | (Operation::Or(_, _),Expression::Operation(Operation::Or(a, b))) => {
+                self.extract_inner_if_same(a, storage);
+                self.extract_inner_if_same(b, storage);
+            }
+            _ => {
+                storage.push(other.to_json_logic());
+            }
+        }
+    }
     pub fn to_json_logic(&self) -> serde_json::Value {
         match self {
             Operation::Plus(a, b)
             | Operation::Minus(a, b)
             | Operation::And(a, b)
             | Operation::Or(a, b) => {
-                let a = a.to_json_logic();
-                let b = b.to_json_logic();
+                let mut args = vec![];
+                self.extract_inner_if_same(a, &mut args);
+                self.extract_inner_if_same(b, &mut args);
+               
                 let token = self.to_string();
                 json!({
-                    token : [
-                        a,
-                        b
-                    ]
+                    token : args
                 })
             }
             Self::PlusTime(a, b) | Self::MinusTime(a, b) => match b.as_ref() {

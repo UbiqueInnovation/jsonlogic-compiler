@@ -82,24 +82,23 @@ pub grammar arithmetic() for str {
         x:(@) ne() y:@ { Expression::Comparison(Comparison::NotEqual(Box::new(x), Box::new(y))) }
         x:(@) ene() y:@ { Expression::Comparison(Comparison::NotExactEqual(Box::new(x), Box::new(y))) }
         --
-        v:var() l:time_interval() {
+        _ v:var() l:time_interval() _ {
             let l = l.strip_prefix("#").unwrap();
             let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
             Expression::TimeInterval(Box::new(Expression::Var(v.to_owned())), l.to_owned())
         }
-        v:number() l:time_interval() {
+        _ v:number() _ l:time_interval() {
             let l = l.strip_prefix("#").unwrap();
             let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
             Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(v.parse::<i128>().unwrap()))), l.to_owned())
         }
-        l:bool() {Expression::Atomic(Value::Bool(l.parse::<bool>().unwrap()))}
+        _ l:bool() _ {Expression::Atomic(Value::Bool(l.parse::<bool>().unwrap()))}
         --
-        v:var() {Expression::Var(v.to_owned())}
-        
+        _ v:var() _ {Expression::Var(v.to_owned())}
         --
-        f:float() {Expression::Atomic(Value::Float(f.parse::<f64>().unwrap()))}
-        l:number() {Expression::Atomic(Value::Int(l.parse::<i128>().unwrap()))}
-        "\"" s:string() "\"" {
+        _ f:float() _ {Expression::Atomic(Value::Float(f.parse::<f64>().unwrap()))}
+        _ l:number() _ {Expression::Atomic(Value::Int(l.parse::<i128>().unwrap()))}
+        _ "\"" s:string() "\"" _ {
 
             Expression::Atomic(Value::String(s.to_owned()))
         }

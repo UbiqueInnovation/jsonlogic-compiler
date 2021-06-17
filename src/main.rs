@@ -6,6 +6,7 @@ fn main() {
             payload.v.0.tg === external.acceptance-criterias.diseases.sarscov2 ?? "test"
             && payload.v.0.dn >= payload.v.0.sd 
             && payload.v.0.sd >= 2
+            && payload.v.0.dn == 2
         )
         {
             true
@@ -14,6 +15,7 @@ fn main() {
             false
         }
     "#).unwrap();
+    
     let expression = expression.to_json_logic();
    
     println!("{}", serde_json::to_string_pretty(&expression).unwrap());

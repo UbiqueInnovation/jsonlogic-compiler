@@ -3,8 +3,9 @@ use jlc;
 fn main() {
     let expression = jlc::arithmetic::expression(r#"
         if ( 
-            payload.v.0.tg === external.acceptance-criterias.diseases.sarscov2
+            payload.v.0.tg === external.acceptance-criterias.diseases.sarscov2 ?? "test"
             && payload.v.0.dn >= payload.v.0.sd 
+            && payload.v.0.sd >= 2
         )
         {
             true

@@ -12,6 +12,7 @@ parser!{
 pub grammar arithmetic() for str {
     rule var() -> &'input str = $(['a'..='z' | 'A'..='Z']+[ '.' | 'a'..='z' | 'A'..='Z' |'0'..='9' | '_' |'-']*)
     rule number() -> &'input str = $(['0'..='9']+)
+    rule string() -> &'input str = $([^'"']*)
     rule float() -> &'input str = $(['0'..='9']+"."['0'..='9']+)
     rule time_interval() -> &'input str = $("#" ("years" / "year" / "months" / "month" / "days" / "day" / "hours" / "hour" /"minutes"/ "minute" / "seconds"/ "second"))
     rule bool() -> &'input str = $("true" / "false")
@@ -29,6 +30,7 @@ pub grammar arithmetic() for str {
     rule ne() = _ "!=" _
     rule ene() = _ "!==" _
     rule not() = _ ("!" / "not") _
+    rule null_coercion() = _ "??" _
 
 
     rule operation() -> Expression = precedence!{
@@ -70,6 +72,16 @@ pub grammar arithmetic() for str {
         x:(@) ne() y:@ { Expression::Comparison(Comparison::NotEqual(Box::new(x), Box::new(y))) }
         x:(@) ene() y:@ { Expression::Comparison(Comparison::NotExactEqual(Box::new(x), Box::new(y))) }
         --
+         v:var() null_coercion() f:float() {
+            Expression::VarWithDefault(v.to_owned(),Value::Float(f.parse::<f64>().unwrap()))
+        }
+        v:var() null_coercion() l:number() {
+             Expression::VarWithDefault(v.to_owned(),Value::Int(l.parse::<i128>().unwrap()))
+        }
+        v:var() null_coercion() "\"" s:string()"\"" {
+             Expression::VarWithDefault(v.to_owned(),Value::String(s.to_owned()))
+        }
+        --
         v:var() l:time_interval() {
             let l = l.strip_prefix("#").unwrap();
             let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
@@ -83,9 +95,14 @@ pub grammar arithmetic() for str {
         l:bool() {Expression::Atomic(Value::Bool(l.parse::<bool>().unwrap()))}
         --
         v:var() {Expression::Var(v.to_owned())}
+        
         --
         f:float() {Expression::Atomic(Value::Float(f.parse::<f64>().unwrap()))}
         l:number() {Expression::Atomic(Value::Int(l.parse::<i128>().unwrap()))}
+        "\"" s:string() "\"" {
+
+            Expression::Atomic(Value::String(s.to_owned()))
+        }
         --
          _ "(" _ e:expression() _ ")" _ { e }
         

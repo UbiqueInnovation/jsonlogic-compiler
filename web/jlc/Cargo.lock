@@ -167,6 +167,8 @@ dependencies = [
  "futures",
  "jlc",
  "js-sys",
+ "jsonlogic",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",

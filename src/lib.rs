@@ -181,7 +181,7 @@ impl Operation {
     pub fn extract_inner_if_same<'other>(&'other self, other: &'other Box<Expression>, storage : &mut Vec<serde_json::Value>) {
         match (self, other.as_ref())  {
             (Operation::Plus(_, _),Expression::Operation(Operation::Plus(a, b)))
-            | (Operation::Minus(_, _),Expression::Operation(Operation::Minus(a, b)))
+           
             |(Operation::And(_, _),Expression::Operation(Operation::And(a, b)))
             | (Operation::Or(_, _),Expression::Operation(Operation::Or(a, b))) => {
                 self.extract_inner_if_same(a, storage);

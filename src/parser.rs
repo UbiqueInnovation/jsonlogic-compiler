@@ -21,19 +21,21 @@ pub grammar arithmetic() for str {
     rule minus() = _ ("-" /"minus") _
     rule and() = _ ("&&" / "and") _
     rule or() = _ ("||" / "or") _
-    rule lt() = _ "<" _
-    rule lte() = _ "<=" _
-    rule gt() = _ ">" _
-    rule gte() = _ ">=" _
+    rule lt() = _ ("<" / "is before") _
+    rule lte() = _ ("<=" / "is not after") _
+    rule gt() = _ (">" / "is after") _
+    rule gte() = _ (">=" / "is not before") _
     rule eq() = _ "==" _
     rule eeq() = _ "===" _
     rule ne() = _ "!=" _
     rule ene() = _ "!==" _
     rule not() = _ ("!" / "not") _
     rule null_coercion() = _ "??" _
+    rule now() = _ "now" _ "(" _ ")" _
 
 
     rule operation() -> Expression = precedence!{
+       _ now() _ {Expression::Var("external.validationClock".to_owned())}
         v:var() null_coercion() f:float() {
             Expression::VarWithDefault(v.to_owned(),Value::Float(f.parse::<f64>().unwrap()))
         }
@@ -87,7 +89,7 @@ pub grammar arithmetic() for str {
             let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
             Expression::TimeInterval(Box::new(Expression::Var(v.to_owned())), l.to_owned())
         }
-        _ v:number() _ l:time_interval() {
+        _ v:number() l:time_interval() {
             let l = l.strip_prefix("#").unwrap();
             let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
             Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(v.parse::<i128>().unwrap()))), l.to_owned())
@@ -105,6 +107,7 @@ pub grammar arithmetic() for str {
         --
          _ "(" _ e:expression() _ ")" _ { e }
         
+        
     }
     rule conditional() -> Expression = _  "if" _ "(" _ e:expression() _ ")" _ "{" _ i:expression() _ "}" _ {
         Expression::Conditional{condition: Box::new(e), inner: Box::new(i), other: None}
@@ -112,6 +115,19 @@ pub grammar arithmetic() for str {
     rule conditionalWithElse() -> Expression = _  "if" _ "(" _ e:expression() _ ")" _ "{" _ i:expression() _ "}" _ "else" _ "{" _ o:expression() _ "}" _ {
         Expression::Conditional{condition: Box::new(e), inner: Box::new(i), other: Some(Box::new(o))}
     }
+    rule unary() -> Expression = _ now() _ {
+        Expression::Var("external.validationClock".to_owned())
+    }
 
-    pub rule expression() -> Expression = conditionalWithElse() / conditional() / operation()
+    pub rule expression() -> Expression = conditionalWithElse() / conditional() / operation() / unary()
 }}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test() {
+        let expression = super::arithmetic::expression("now() + 3#years").unwrap();
+        println!("{}", expression.to_json_logic());
+    }
+
+}

@@ -53,7 +53,7 @@ impl Expression {
                 }
             }
             Expression::Var(v) => {
-                json!({ "var": [v] })
+                json!({ "var": v })
             }
             Expression::VarWithDefault(v, fall_back) => {
                 let value = fall_back.to_serde_json();
@@ -66,6 +66,15 @@ impl Expression {
             }
             Expression::Comparison(comp) => comp.to_json_logic(),
             Expression::Atomic(inner) => inner.to_serde_json(),
+            Expression::TimeInterval(a,b) => {
+                let inner = a.to_json_logic();
+                json!({
+                    "timeSpan" : [
+                        inner,
+                        b
+                    ]
+                })
+            }
             _ => {
                 json!({})
             }

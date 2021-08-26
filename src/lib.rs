@@ -21,6 +21,10 @@ pub enum Expression {
     Comparison(Comparison),
     Atomic(Value),
     TimeInterval(Box<Expression>, String),
+    Array(Vec<Expression>),
+    ArrayOperation(Box<Expression>, String, Box<Expression>),
+    ArrayOperationWithArguments(Box<Expression>, String, Box<Expression>, Vec<Expression>),
+    Function(String, Vec<Expression>)
 }
 
 impl Expression {
@@ -66,7 +70,48 @@ impl Expression {
             }
             Expression::Comparison(comp) => comp.to_json_logic(),
             Expression::Atomic(inner) => inner.to_serde_json(),
-            Expression::TimeInterval(a,b) => {
+            Expression::Array(expressions) => {
+                let mut json_logic_expressions = vec![];
+                for exp in expressions {
+                    json_logic_expressions.push(exp.to_json_logic());
+                }
+                json!(json_logic_expressions)
+            }
+            Expression::Function(func_name, args) => {
+                let mut the_args = vec![];
+                for arg in args {
+                    the_args.push(arg.to_json_logic());
+                }
+                json!({
+                    func_name: the_args
+                })
+            }
+            Expression::ArrayOperation(var, func_name, inner_expr) => {
+                let array = var.to_json_logic();
+                let inner_expr = inner_expr.to_json_logic();
+
+                json!({
+                    func_name : [
+                        array,
+                        inner_expr
+                    ]
+                })
+            }
+             Expression::ArrayOperationWithArguments(var, func_name, inner_expr, args) => {
+                let array = var.to_json_logic();
+                let inner_expr = inner_expr.to_json_logic();
+                let mut operands = vec![];
+                operands.push(array);
+                operands.push(inner_expr);
+                for arg in args {
+                    let arg = arg.to_json_logic();
+                    operands.push(arg);
+                }
+                json!({
+                    func_name : operands
+                })
+            }
+            Expression::TimeInterval(a, b) => {
                 let inner = a.to_json_logic();
                 json!({
                     "timeSpan" : [
@@ -171,6 +216,7 @@ pub enum Operation {
     MinusTime(Box<Expression>, Box<Expression>),
     And(Box<Expression>, Box<Expression>),
     Or(Box<Expression>, Box<Expression>),
+    Modulo(Box<Expression>, Box<Expression>),
 }
 
 impl std::fmt::Display for Operation {
@@ -182,17 +228,21 @@ impl std::fmt::Display for Operation {
             Operation::MinusTime(_, _) => f.write_str("minusTime"),
             Operation::And(_, _) => f.write_str("and"),
             Operation::Or(_, _) => f.write_str("or"),
+            Operation::Modulo(_, _) => f.write_str("%"),
         }
     }
 }
 
 impl Operation {
-    fn extract_inner_if_same<'other>(&'other self, other: &'other Box<Expression>, storage : &mut Vec<serde_json::Value>) {
-        match (self, other.as_ref())  {
-            (Operation::Plus(_, _),Expression::Operation(Operation::Plus(a, b)))
-           
-            |(Operation::And(_, _),Expression::Operation(Operation::And(a, b)))
-            | (Operation::Or(_, _),Expression::Operation(Operation::Or(a, b))) => {
+    fn extract_inner_if_same<'other>(
+        &'other self,
+        other: &'other Box<Expression>,
+        storage: &mut Vec<serde_json::Value>,
+    ) {
+        match (self, other.as_ref()) {
+            (Operation::Plus(_, _), Expression::Operation(Operation::Plus(a, b)))
+            | (Operation::And(_, _), Expression::Operation(Operation::And(a, b)))
+            | (Operation::Or(_, _), Expression::Operation(Operation::Or(a, b))) => {
                 self.extract_inner_if_same(a, storage);
                 self.extract_inner_if_same(b, storage);
             }
@@ -206,15 +256,14 @@ impl Operation {
             Operation::Plus(a, b)
             | Operation::Minus(a, b)
             | Operation::And(a, b)
-            | Operation::Or(a, b) => {
+            | Operation::Or(a, b)
+            | Operation::Modulo(a, b) => {
                 let mut args = vec![];
                 self.extract_inner_if_same(a, &mut args);
                 self.extract_inner_if_same(b, &mut args);
-               
+
                 let token = self.to_string();
-                json!({
-                    token : args
-                })
+                json!({ token: args })
             }
             Self::PlusTime(a, b) | Self::MinusTime(a, b) => match b.as_ref() {
                 Expression::TimeInterval(amount, unit) => {

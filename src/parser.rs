@@ -132,11 +132,11 @@ pub grammar arithmetic() for str {
     rule switch() -> Expression = _ "switch" _ "(" _ e:expression() _ ")" _ "{" _ switch_statements:switch_block()++ _ "}" _ {
         let mut switch_statements = switch_statements;
         let expressions = switch_statements.pop().unwrap();
-        let comparison = Comparison::Equal(Box::new(e.clone()), Box::new(expressions.0));
+        let comparison = Comparison::ExactEqual(Box::new(e.clone()), Box::new(expressions.0));
         let last = Expression::Conditional{condition: Box::new(Expression::Comparison(comparison)), inner: Box::new(expressions.1), other: None};
         let mut final_element = last.clone();
         while let Some((cond, inner)) = switch_statements.pop() {
-            let comparison = Comparison::Equal(Box::new(e.clone()), Box::new(cond));
+            let comparison = Comparison::ExactEqual(Box::new(e.clone()), Box::new(cond));
             let next = Expression::Conditional{
                 condition: Box::new(Expression::Comparison(comparison)),
                 inner: Box::new(inner),

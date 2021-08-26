@@ -3,23 +3,48 @@ const CopyPlugin = require("copy-webpack-plugin");
 const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 
 const dist = path.resolve(__dirname, "dist");
+const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
+
 
 module.exports = {
   mode: "production",
   entry: {
-    index: "./js/index.js"
+    index: "./js/index.js",
+    editor: "./js/editor.js"
   },
+  experiments: { asyncWebAssembly: true },
   output: {
     path: dist,
-    filename: "[name].js"
+    globalObject: 'self',
+    filename: '[name].js',
+  },
+  module: {
+    rules: [{
+        test: /\.css$/,
+        use: ['style-loader', 'css-loader']
+      },
+      {
+        test: /\.ttf$/,
+        use: ['file-loader']
+      }
+    ]
   },
   devServer: {
-    contentBase: dist,
+    static: { directory: "static" },
   },
   plugins: [
-    new CopyPlugin([
-      path.resolve(__dirname, "static")
-    ]),
+    new MonacoWebpackPlugin({
+      languages: ["javascript", "json"],
+      globalApi: true
+     }),
+    new CopyPlugin({
+      patterns: [
+        path.resolve(__dirname, "static")
+      ],
+      options: {
+        concurrency: 100,
+      }
+    }),
 
     new WasmPackPlugin({
       crateDirectory: __dirname,

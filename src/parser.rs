@@ -86,6 +86,10 @@ pub grammar arithmetic() for str {
             Expression::Operation(Operation::Modulo(Box::new(x), Box::new(y)))
         }
         --
+        _ v:varUnary() _ "in" _ a:(array() / varUnary()) {
+            Expression::Function("in".to_string(),vec![v,a])
+        }
+        --
         _ f:function() _ {f}
         _ a:arrayOperation() _ {a}
         _ a:arrayOperationWithArguments() _ {a}
@@ -167,5 +171,11 @@ mod tests {
         let array_expression =
             super::arithmetic::expression("[1,2,3,4,5].filter { this % 2 == 0 }").unwrap();
         println!("{}", array_expression.to_json_logic());
+    }
+
+    #[test]
+    fn test_in() {
+        let in_expression = super::arithmetic::expression("a in [1,2,3,4]").unwrap();
+        println!("{}", in_expression.to_json_logic());
     }
 }

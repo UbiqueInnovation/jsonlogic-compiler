@@ -33,6 +33,7 @@ pub grammar arithmetic() for str {
     rule null_coercion() = _ "??" _
     rule now() = _ "now" _ "(" _ ")" _
 
+
     rule operation() -> Expression = precedence!{
         v:var() null_coercion() f:float() {
             Expression::VarWithDefault(v.to_owned(),Value::Float(f.parse::<f64>().unwrap()))
@@ -125,6 +126,26 @@ pub grammar arithmetic() for str {
 
 
     }
+    rule switch_block() -> (Expression,Expression) = _ label:expression() _"=>" _ "{" _ e:expression() _"}" _ {
+       (label, e)
+    }
+    rule switch() -> Expression = _ "switch" _ "(" _ e:expression() _ ")" _ "{" _ switch_statements:switch_block()++ _ "}" _ {
+        let mut switch_statements = switch_statements;
+        let expressions = switch_statements.pop().unwrap();
+        let comparison = Comparison::Equal(Box::new(e.clone()), Box::new(expressions.0));
+        let last = Expression::Conditional{condition: Box::new(Expression::Comparison(comparison)), inner: Box::new(expressions.1), other: None};
+        let mut final_element = last.clone();
+        while let Some((cond, inner)) = switch_statements.pop() {
+            let comparison = Comparison::Equal(Box::new(e.clone()), Box::new(cond));
+            let next = Expression::Conditional{
+                condition: Box::new(Expression::Comparison(comparison)),
+                inner: Box::new(inner),
+                other: Some(Box::new(final_element))
+            };
+            final_element = next;
+        }
+        final_element
+    }
     rule conditional() -> Expression = _  "if" _ "(" _ e:expression() _ ")" _ "{" _ i:expression() _ "}" _ {
         Expression::Conditional{condition: Box::new(e), inner: Box::new(i), other: None}
     }
@@ -148,7 +169,7 @@ pub grammar arithmetic() for str {
     rule this() -> Expression = _ "this" _ {Expression::Var("".to_owned())}
     rule function() -> Expression = _ func_name:var() _ "(" _ args:expression()++ "," _ ")" _ {Expression::Function(func_name.to_owned(), args)}
 
-    pub rule expression() -> Expression = conditionalWithElse() / conditional() / operation() / arrayOperationWithArguments() / arrayOperation() / array()  / unary() / function()
+    pub rule expression() -> Expression = switch() / conditionalWithElse() / conditional() / operation() / arrayOperationWithArguments() / arrayOperation() / array()  / unary() / function()
 }}
 
 #[cfg(test)]
@@ -177,5 +198,22 @@ mod tests {
     fn test_in() {
         let in_expression = super::arithmetic::expression("a in [1,2,3,4]").unwrap();
         println!("{}", in_expression.to_json_logic());
+    }
+    #[test]
+    fn test_switch() {
+        let switch_expression = super::arithmetic::expression(r#"
+        switch(a) {
+            "test" => {
+                b
+            }
+            "other" => {
+                c
+            }
+            "third" => {
+                d
+            }
+        }
+        "#).unwrap();
+         println!("{}", switch_expression.to_json_logic());
     }
 }

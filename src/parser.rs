@@ -87,6 +87,8 @@ pub grammar arithmetic() for str {
         }
         --
         _ f:function() _ {f}
+        _ a:arrayOperation() _ {a}
+        _ a:arrayOperationWithArguments() _ {a}
         --
          _ now() _ {Expression::Var("external.validationClock".to_owned())}
          _ t:this() _ {t}
@@ -133,10 +135,10 @@ pub grammar arithmetic() for str {
 
     rule varUnary() -> Expression = _ v:var() _ {Expression::Var(v.to_owned())}
 
-    rule arrayOperation() -> Expression = _ expr:(array() / varUnary()) _ "." _ function:var() _ "{" _ inner:expression() _"}" {
+    rule arrayOperation() -> Expression = _ expr:(array() / varUnary()) _ "::" _ function:var() _ "{" _ inner:expression() _"}" {
         Expression::ArrayOperation(Box::new(expr), function.to_owned(), Box::new(inner))
     }
-      rule arrayOperationWithArguments() -> Expression = _ expr:(array() / varUnary()) _ "." _ function:var() _ "(" args:expression()** "," _ ")" _ "{" _ inner:expression() _"}" {
+      rule arrayOperationWithArguments() -> Expression = _ expr:(array() / varUnary()) _ "::" _ function:var() _ "(" args:expression()** "," _ ")" _ "{" _ inner:expression() _"}" {
         Expression::ArrayOperationWithArguments(Box::new(expr), function.to_owned(), Box::new(inner), args)
     }
     rule this() -> Expression = _ "this" _ {Expression::Var("".to_owned())}

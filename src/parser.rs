@@ -75,7 +75,7 @@ pub grammar arithmetic() for str {
         }
         --
         _ v:var() _ "as DateTime" _ {
-            Expression::Atomic(Value::String(v.to_owned()))
+            Expression::Var(v.to_owned())
         }
         --
         _ "(" _ e:expression() _ ")" _ { e }

@@ -5,7 +5,6 @@
 
 import * as monaco from 'monaco-editor';
 
-
 var logic = monaco.editor.create(document.getElementById("logic"), {
     value: "payload.v.0",
     language: "javascript",

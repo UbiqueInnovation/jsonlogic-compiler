@@ -30,7 +30,7 @@ jlc = {version = "*", path = "../../"}
 # compared to the default allocator's ~10K. However, it is slower than the default
 # allocator, so it's not enabled by default.
 wee_alloc = { version = "0.4.2", optional = true }
-jsonlogic = {version = "0.5.3", git = "https://github.com/ubamrein/jsonlogic_rs.git"}
+jsonlogic = {version = "0.5.4", git = "https://github.com/ubamrein/jsonlogic_rs.git"}
 serde_json = "1.0.64"
 
 # The `web-sys` crate allows you to interact with the various browser APIs,

@@ -1,5 +1,4 @@
 use wasm_bindgen::prelude::*;
-use web_sys::console;
 use jlc::arithmetic::expression;
 
 #[wasm_bindgen]

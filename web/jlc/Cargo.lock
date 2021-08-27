@@ -65,7 +65,7 @@ checksum = "dd25036021b0de88a0aff6b850051563c6516d0bf53f8638938edbb9de732736"
 name = "jlc"
 version = "0.1.0"
 dependencies = [
- "jsonlogic 0.5.1",
+ "jsonlogic",
  "peg",
  "serde_json",
 ]
@@ -81,17 +81,8 @@ dependencies = [
 
 [[package]]
 name = "jsonlogic"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fde0699c6109316a5add3d42ae21ae954f207739f12b68914a0d447b9aa45e6f"
-dependencies = [
- "serde_json",
-]
-
-[[package]]
-name = "jsonlogic"
-version = "0.5.3"
-source = "git+https://github.com/ubamrein/jsonlogic_rs.git#c87a60bb22f642f3237e3998c04b915602197f42"
+version = "0.5.4"
+source = "git+https://github.com/ubamrein/jsonlogic_rs.git#671eb2ec84259dba92e26a71f52d0f9959465cc6"
 dependencies = [
  "chrono",
  "serde_json",
@@ -214,7 +205,7 @@ dependencies = [
  "futures",
  "jlc",
  "js-sys",
- "jsonlogic 0.5.3",
+ "jsonlogic",
  "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",

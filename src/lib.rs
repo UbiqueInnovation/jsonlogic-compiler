@@ -120,9 +120,6 @@ impl Expression {
                     ]
                 })
             }
-            _ => {
-                json!({})
-            }
         }
     }
 }
@@ -165,6 +162,10 @@ pub enum Comparison {
     ExactEqual(Box<Expression>, Box<Expression>),
     NotEqual(Box<Expression>, Box<Expression>),
     NotExactEqual(Box<Expression>, Box<Expression>),
+    Before(Box<Expression>, Box<Expression>),
+    NotBefore(Box<Expression>, Box<Expression>),
+    After(Box<Expression>, Box<Expression>),
+    NotAfter(Box<Expression>, Box<Expression>),
 }
 
 impl std::fmt::Display for Comparison {
@@ -178,6 +179,10 @@ impl std::fmt::Display for Comparison {
             Comparison::ExactEqual(_, _) => f.write_str("==="),
             Comparison::NotEqual(_, _) => f.write_str("!="),
             Comparison::NotExactEqual(_, _) => f.write_str("!=="),
+            Comparison::Before(_, _) => f.write_str("before"),
+            Comparison::NotBefore(_, _) => f.write_str("not-before"),
+            Comparison::After(_, _) => f.write_str("after"),
+            Comparison::NotAfter(_, _) => f.write_str("not-after"),
         }
     }
 }
@@ -192,7 +197,11 @@ impl Comparison {
             | Comparison::Equal(a, b)
             | Comparison::ExactEqual(a, b)
             | Comparison::NotEqual(a, b)
-            | Comparison::NotExactEqual(a, b) => {
+            | Comparison::NotExactEqual(a, b)
+            | Comparison::After(a,b)
+            | Comparison::NotAfter(a,b)
+            | Comparison::Before(a,b)
+            | Comparison::NotBefore(a,b) => {
                 let a = a.to_json_logic();
                 let b = b.to_json_logic();
                 let token = self.to_string();

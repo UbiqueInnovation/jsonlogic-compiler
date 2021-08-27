@@ -13,6 +13,10 @@ pub grammar arithmetic() for str {
     rule number() -> &'input str = quiet!{$(['0'..='9']+)} / expected!("Number")
     rule string() -> &'input str = quiet!{$([^'"']*)} / expected!("String")
     rule float() -> &'input str = quiet!{$(['0'..='9']+"."['0'..='9']+)} / expected!("Float")
+    rule date() -> &'input str = $(['0'..='9']*<4>"-"['0'..='9']*<2>"-"['0'..='9']*<2>)
+    rule time() -> &'input str = $(['0'..='9']*<2>":"['0'..='9']*<2>(":"['0'..='9']*<2>("."['0'..='9']+)?)?)
+    rule offset() -> &'input str = $((("+"/"-")['0'..='9']*<2>(":"['0'..='9']*<2>)?)/"Z")
+    rule dateTime() -> &'input str = $(date()("T" time()(offset())?)?)
     rule time_interval() -> &'input str = quiet!{$("#" ("years" / "year" / "months" / "month" / "days" / "day" / "hours" / "hour" /"minutes"/ "minute" / "seconds"/ "second"))} / expected!("Time interval (year,month,hour,minut,second)")
     rule bool() -> &'input str = quiet!{$("true" / "false")} /expected!("Boolean")
     rule _ = quiet!{[' ' | '\n']*}
@@ -21,10 +25,14 @@ pub grammar arithmetic() for str {
     rule modulo() = _ ("%" / "mod") _
     rule and() = _ ("&&" / "and") _
     rule or() = _ ("||" / "or") _
-    rule lt() = _ ("<" / "is before") _
-    rule lte() = _ ("<=" / "is not after") _
-    rule gt() = _ (">" / "is after") _
-    rule gte() = _ (">=" / "is not before") _
+    rule lt() = _ ("<" ) _
+    rule before() = _ "is before" _
+    rule notBefore() = _ ("is not before" / "not before") _
+    rule after() = _ "is after" _
+    rule notAfter() = _ ("is not after" / "not after") _
+    rule lte() = _ ("<=" ) _
+    rule gt() = _ (">") _
+    rule gte() = _ (">=") _
     rule eq() = _ "==" _
     rule eeq() = _ "===" _
     rule ne() = _ "!=" _
@@ -33,6 +41,47 @@ pub grammar arithmetic() for str {
     rule null_coercion() = _ "??" _
     rule now() = _ quiet!{"now" _ "(" _ ")"} _
 
+    rule timeOperation() -> Expression = precedence!{
+          x:(@) plus() y:@ {
+            Expression::Operation(Operation::PlusTime(Box::new(x), Box::new(y)))
+
+        }
+        x:(@) minus() y:@ {
+             Expression::Operation(Operation::MinusTime(Box::new(x), Box::new(y)))
+        }
+        --
+        x:(@) before() y:@ { Expression::Comparison(Comparison::Before(Box::new(x), Box::new(y))) }
+        x:(@) notBefore() y:@ { Expression::Comparison(Comparison::NotBefore(Box::new(x), Box::new(y))) }
+        x:(@) after() y:@ { Expression::Comparison(Comparison::After(Box::new(x), Box::new(y))) }
+        x:(@) notAfter() y:@ { Expression::Comparison(Comparison::NotAfter(Box::new(x), Box::new(y))) }
+        --
+        _ now() _ {Expression::Var("external.validationClock".to_owned())}
+        --
+        _ v:var() l:time_interval() _ {
+            let l = l.strip_prefix("#").unwrap();
+            let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
+            Expression::TimeInterval(Box::new(Expression::Var(v.to_owned())), l.to_owned())
+        }
+        _ v:number() l:time_interval() {
+            let l = l.strip_prefix("#").unwrap();
+            let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
+            Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(v.parse::<i128>().unwrap()))), l.to_owned())
+        }
+        --
+        _ "\"" d:dateTime() "\"" {  
+           let date = Expression::Atomic(Value::String(d.to_owned()));
+           let unit = Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(0))), "day".to_string());
+           Expression::Operation(Operation::PlusTime(Box::new(date), Box::new(unit)))
+        }
+        --
+        _ v:var() _ {
+            let date = Expression::Var(v.to_owned());
+            let unit = Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(0))), "day".to_string());
+            Expression::Operation(Operation::PlusTime(Box::new(date), Box::new(unit)))
+        }
+        --
+        _ "(" _ e:expression() _ ")" _ { e }
+    }
 
     rule operation() -> Expression = precedence!{
         v:var() null_coercion() f:float() {
@@ -74,6 +123,15 @@ pub grammar arithmetic() for str {
         }
 
         --
+           _ v:varUnary() _ "in" _ a:(array() / varUnary()) {
+            Expression::Function("in".to_string(),vec![v,a])
+        }
+        --
+        _ f:function() _ {f}
+        _ a:arrayOperation() _ {a}
+        _ a:arrayOperationWithArguments() _ {a}
+
+        --
         x:(@) lt() y:@ { Expression::Comparison(Comparison::LessThan(Box::new(x), Box::new(y))) }
         x:(@) lte() y:@ { Expression::Comparison(Comparison::LessThanEqual(Box::new(x), Box::new(y))) }
         x:(@) gt() y:@ { Expression::Comparison(Comparison::GreaterThan(Box::new(x), Box::new(y))) }
@@ -87,27 +145,7 @@ pub grammar arithmetic() for str {
             Expression::Operation(Operation::Modulo(Box::new(x), Box::new(y)))
         }
         --
-        _ v:varUnary() _ "in" _ a:(array() / varUnary()) {
-            Expression::Function("in".to_string(),vec![v,a])
-        }
-        --
-        _ f:function() _ {f}
-        _ a:arrayOperation() _ {a}
-        _ a:arrayOperationWithArguments() _ {a}
-        --
-         _ now() _ {Expression::Var("external.validationClock".to_owned())}
          _ t:this() _ {t}
-        --
-        _ v:var() l:time_interval() _ {
-            let l = l.strip_prefix("#").unwrap();
-            let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
-            Expression::TimeInterval(Box::new(Expression::Var(v.to_owned())), l.to_owned())
-        }
-        _ v:number() l:time_interval() {
-            let l = l.strip_prefix("#").unwrap();
-            let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
-            Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(v.parse::<i128>().unwrap()))), l.to_owned())
-        }
         _ l:bool() _ {Expression::Atomic(Value::Bool(l.parse::<bool>().unwrap()))}
         --
         _ v:var() _ {Expression::Var(v.to_owned())}
@@ -129,7 +167,7 @@ pub grammar arithmetic() for str {
     }
     rule default_switch_block() -> Expression = _ "_" _ "=>" _ "{" _ e:expression()  _ "}" _ {
         e
-    } 
+    }
     rule switch() -> Expression = _ quiet!{"switch"} _ "(" _ e:expression() _ ")" _ "{" _ switch_statements:switch_block()++ _ default_block:(quiet!{default_switch_block()}/ expected!("Exhaustive Switch")) _ "}" _ {
         let mut switch_statements = switch_statements;
         let expressions = switch_statements.pop().unwrap();
@@ -157,7 +195,7 @@ pub grammar arithmetic() for str {
         Expression::Var("external.validationClock".to_owned())
     }
 
-    rule keyword() = "if"/"switch"/"else"/"this"
+    rule keyword() = "if"/"switch"/"else"/"this"/ "true" / "false"
 
     rule array() -> Expression =  _ "[" _ e:expression()** "," _ "]" _ { Expression::Array(e)}
 
@@ -169,10 +207,13 @@ pub grammar arithmetic() for str {
       rule arrayOperationWithArguments() -> Expression = _ expr:(array() / varUnary()) _ "::" _ function:var() _ "(" args:expression()** "," _ ")" _ "{" _ inner:expression() _"}" {
         Expression::ArrayOperationWithArguments(Box::new(expr), function.to_owned(), Box::new(inner), args)
     }
+    rule booleanExpression() -> Expression = b:bool() {
+        Expression::Atomic(Value::Bool(b.parse().unwrap()))
+    }
     rule this() -> Expression = _ quiet!{"this"} _ {Expression::Var("".to_owned())}
     rule function() -> Expression = _ !(keyword()) func_name:var() _ "(" _ args:expression()++ "," _ ")" _ {Expression::Function(func_name.to_owned(), args)}
 
-    pub rule expression() -> Expression = (switch() / expected!("Switch")) / (conditionalWithElse()/ conditional()/ expected!("Conditional"))  / (operation()/expected!("Binary operator"))/ (arrayOperationWithArguments() / arrayOperation() / array()/expected!("Array expression"))  / (unary() / function()/expected!("Function"))
+    pub rule expression() -> Expression = (switch() / expected!("Switch")) / (conditionalWithElse()/ conditional()/ expected!("Conditional"))  / (timeOperation() / operation() /expected!("Binary operator"))/ (arrayOperationWithArguments() / arrayOperation() / array()/expected!("Array expression"))  / (unary() / function()/expected!("Function"))
 }}
 
 #[cfg(test)]
@@ -204,7 +245,8 @@ mod tests {
     }
     #[test]
     fn test_switch() {
-        let switch_expression = super::arithmetic::expression(r#"
+        let switch_expression = super::arithmetic::expression(
+            r#"
         switch(a) {
             "test" => {
                 b
@@ -219,7 +261,30 @@ mod tests {
                 undefined
             }
         }
-        "#).unwrap();
-         println!("{}", switch_expression.to_json_logic());
+        "#,
+        )
+        .unwrap();
+        println!("{}", switch_expression.to_json_logic());
+    }
+    #[test]
+    fn test_time() {
+        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00""#).unwrap();
+        println!("{}", time.to_json_logic());
+        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00:00""#).unwrap();
+        println!("{}", time.to_json_logic());
+        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00:00.000""#).unwrap();
+        println!("{}", time.to_json_logic());
+        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00Z""#).unwrap();
+        println!("{}", time.to_json_logic());
+        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00:00Z""#).unwrap();
+        println!("{}", time.to_json_logic());
+        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00+03""#).unwrap();
+        println!("{}", time.to_json_logic());
+        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00+03:00""#).unwrap();
+        println!("{}", time.to_json_logic());
+        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00:00.999+03""#).unwrap();
+        println!("{}", time.to_json_logic());
+        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00:00.999+03:00""#).unwrap();
+        println!("{}", time.to_json_logic());
     }
 }

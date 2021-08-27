@@ -15,7 +15,6 @@ module.exports = {
   experiments: { asyncWebAssembly: true },
   output: {
     path: dist,
-    globalObject: 'self',
     filename: '[name].js',
   },
   module: {
@@ -34,7 +33,6 @@ module.exports = {
   },
   plugins: [
     new MonacoWebpackPlugin({
-      languages: ["javascript", "json"],
       globalApi: true
      }),
     new CopyPlugin({

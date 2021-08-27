@@ -9,7 +9,7 @@ use peg::parser;
 parser! {
 /// Doc comment
 pub grammar arithmetic() for str {
-    rule var() -> &'input str = quiet!{$(['a'..='z' | 'A'..='Z']+[ '.' | 'a'..='z' | 'A'..='Z' |'0'..='9' | '_' |'-']*)}/expected!("Variable")
+    rule var() -> &'input str = quiet!{$(!keyword() ['a'..='z' | 'A'..='Z']+[ '.' | 'a'..='z' | 'A'..='Z' |'0'..='9' | '_' |'-']*)}/expected!("Variable")
     rule number() -> &'input str = quiet!{$(['0'..='9']+)} / expected!("Number")
     rule string() -> &'input str = quiet!{$([^'"']*)} / expected!("String")
     rule float() -> &'input str = quiet!{$(['0'..='9']+"."['0'..='9']+)} / expected!("Float")
@@ -157,6 +157,8 @@ pub grammar arithmetic() for str {
         Expression::Var("external.validationClock".to_owned())
     }
 
+    rule keyword() = "if"/"switch"/"else"/"this"
+
     rule array() -> Expression =  _ "[" _ e:expression()** "," _ "]" _ { Expression::Array(e)}
 
     rule varUnary() -> Expression = _ v:var() _ {Expression::Var(v.to_owned())}
@@ -168,7 +170,7 @@ pub grammar arithmetic() for str {
         Expression::ArrayOperationWithArguments(Box::new(expr), function.to_owned(), Box::new(inner), args)
     }
     rule this() -> Expression = _ quiet!{"this"} _ {Expression::Var("".to_owned())}
-    rule function() -> Expression = _ func_name:var() _ "(" _ args:expression()++ "," _ ")" _ {Expression::Function(func_name.to_owned(), args)}
+    rule function() -> Expression = _ !(keyword()) func_name:var() _ "(" _ args:expression()++ "," _ ")" _ {Expression::Function(func_name.to_owned(), args)}
 
     pub rule expression() -> Expression = (switch() / expected!("Switch")) / (conditionalWithElse()/ conditional()/ expected!("Conditional"))  / (operation()/expected!("Binary operator"))/ (arrayOperationWithArguments() / arrayOperation() / array()/expected!("Array expression"))  / (unary() / function()/expected!("Function"))
 }}

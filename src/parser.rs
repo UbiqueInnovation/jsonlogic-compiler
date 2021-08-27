@@ -9,13 +9,13 @@ use peg::parser;
 parser! {
 /// Doc comment
 pub grammar arithmetic() for str {
-    rule var() -> &'input str = $(['a'..='z' | 'A'..='Z']+[ '.' | 'a'..='z' | 'A'..='Z' |'0'..='9' | '_' |'-']*)
-    rule number() -> &'input str = $(['0'..='9']+)
-    rule string() -> &'input str = $([^'"']*)
-    rule float() -> &'input str = $(['0'..='9']+"."['0'..='9']+)
-    rule time_interval() -> &'input str = $("#" ("years" / "year" / "months" / "month" / "days" / "day" / "hours" / "hour" /"minutes"/ "minute" / "seconds"/ "second"))
-    rule bool() -> &'input str = $("true" / "false")
-    rule _ = [' ' | '\n']*
+    rule var() -> &'input str = quiet!{$(['a'..='z' | 'A'..='Z']+[ '.' | 'a'..='z' | 'A'..='Z' |'0'..='9' | '_' |'-']*)}/expected!("Variable")
+    rule number() -> &'input str = quiet!{$(['0'..='9']+)} / expected!("Number")
+    rule string() -> &'input str = quiet!{$([^'"']*)} / expected!("String")
+    rule float() -> &'input str = quiet!{$(['0'..='9']+"."['0'..='9']+)} / expected!("Float")
+    rule time_interval() -> &'input str = quiet!{$("#" ("years" / "year" / "months" / "month" / "days" / "day" / "hours" / "hour" /"minutes"/ "minute" / "seconds"/ "second"))} / expected!("Time interval (year,month,hour,minut,second)")
+    rule bool() -> &'input str = quiet!{$("true" / "false")} /expected!("Boolean")
+    rule _ = quiet!{[' ' | '\n']*}
     rule plus() = _ ("+"/ "plus")  _
     rule minus() = _ ("-" /"minus") _
     rule modulo() = _ ("%" / "mod") _
@@ -31,7 +31,7 @@ pub grammar arithmetic() for str {
     rule ene() = _ "!==" _
     rule not() = _ ("!" / "not") _
     rule null_coercion() = _ "??" _
-    rule now() = _ "now" _ "(" _ ")" _
+    rule now() = _ quiet!{"now" _ "(" _ ")"} _
 
 
     rule operation() -> Expression = precedence!{
@@ -122,18 +122,19 @@ pub grammar arithmetic() for str {
          _ "[" _ e:expression()** _ "," _ "]" _ { Expression::Array(e)}
         --
          _ "(" _ e:expression() _ ")" _ { e }
-
-
-
     }
+
     rule switch_block() -> (Expression,Expression) = _ label:expression() _"=>" _ "{" _ e:expression() _"}" _ {
        (label, e)
     }
-    rule switch() -> Expression = _ "switch" _ "(" _ e:expression() _ ")" _ "{" _ switch_statements:switch_block()++ _ "}" _ {
+    rule default_switch_block() -> Expression = _ "_" _ "=>" _ "{" _ e:expression()  _ "}" _ {
+        e
+    } 
+    rule switch() -> Expression = _ quiet!{"switch"} _ "(" _ e:expression() _ ")" _ "{" _ switch_statements:switch_block()++ _ default_block:(quiet!{default_switch_block()}/ expected!("Exhaustive Switch")) _ "}" _ {
         let mut switch_statements = switch_statements;
         let expressions = switch_statements.pop().unwrap();
         let comparison = Comparison::ExactEqual(Box::new(e.clone()), Box::new(expressions.0));
-        let last = Expression::Conditional{condition: Box::new(Expression::Comparison(comparison)), inner: Box::new(expressions.1), other: None};
+        let last = Expression::Conditional{condition: Box::new(Expression::Comparison(comparison)), inner: Box::new(expressions.1), other: Some(Box::new(default_block))};
         let mut final_element = last.clone();
         while let Some((cond, inner)) = switch_statements.pop() {
             let comparison = Comparison::ExactEqual(Box::new(e.clone()), Box::new(cond));
@@ -146,10 +147,10 @@ pub grammar arithmetic() for str {
         }
         final_element
     }
-    rule conditional() -> Expression = _  "if" _ "(" _ e:expression() _ ")" _ "{" _ i:expression() _ "}" _ {
+    rule conditional() -> Expression = _  quiet!{"if"} _ "(" _ e:expression() _ ")" _ "{" _ i:expression() _ "}" _ {
         Expression::Conditional{condition: Box::new(e), inner: Box::new(i), other: None}
     }
-    rule conditionalWithElse() -> Expression = _  "if" _ "(" _ e:expression() _ ")" _ "{" _ i:expression() _ "}" _ "else" _ "{" _ o:expression() _ "}" _ {
+    rule conditionalWithElse() -> Expression = _  quiet!{"if"} _ "(" _ e:expression() _ ")" _ "{" _ i:expression() _ "}" _ "else" _ "{" _ o:expression() _ "}" _ {
         Expression::Conditional{condition: Box::new(e), inner: Box::new(i), other: Some(Box::new(o))}
     }
     rule unary() -> Expression = _ now() _ {
@@ -166,10 +167,10 @@ pub grammar arithmetic() for str {
       rule arrayOperationWithArguments() -> Expression = _ expr:(array() / varUnary()) _ "::" _ function:var() _ "(" args:expression()** "," _ ")" _ "{" _ inner:expression() _"}" {
         Expression::ArrayOperationWithArguments(Box::new(expr), function.to_owned(), Box::new(inner), args)
     }
-    rule this() -> Expression = _ "this" _ {Expression::Var("".to_owned())}
+    rule this() -> Expression = _ quiet!{"this"} _ {Expression::Var("".to_owned())}
     rule function() -> Expression = _ func_name:var() _ "(" _ args:expression()++ "," _ ")" _ {Expression::Function(func_name.to_owned(), args)}
 
-    pub rule expression() -> Expression = switch() / conditionalWithElse() / conditional() / operation() / arrayOperationWithArguments() / arrayOperation() / array()  / unary() / function()
+    pub rule expression() -> Expression = (switch() / expected!("Switch")) / (conditionalWithElse()/ conditional()/ expected!("Conditional"))  / (operation()/expected!("Binary operator"))/ (arrayOperationWithArguments() / arrayOperation() / array()/expected!("Array expression"))  / (unary() / function()/expected!("Function"))
 }}
 
 #[cfg(test)]
@@ -211,6 +212,9 @@ mod tests {
             }
             "third" => {
                 d
+            }
+            _ => {
+                undefined
             }
         }
         "#).unwrap();

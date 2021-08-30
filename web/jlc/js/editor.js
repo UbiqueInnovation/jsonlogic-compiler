@@ -4,10 +4,12 @@
 // https://opensource.org/licenses/MIT
 
 import * as monaco from 'monaco-editor';
+import "./aifc";
 
 var logic = monaco.editor.create(document.getElementById("logic"), {
     value: "payload.v.0",
-    language: "javascript",
+    language: "aifc",
+    theme: 'aifcTheme',
     automaticLayout: true
 });
 
@@ -39,6 +41,11 @@ var jsonLogicBinding = json.onDidChangeModelContent((e) => {
 });
 var blubBinding = dataEditor.onDidChangeModelContent((e) => {
     applyLogic();
+    try {
+        window.dataModel = JSON.parse(dataEditor.getModel().getValue());
+    } catch (ex) {
+        
+    }
 });
 
 

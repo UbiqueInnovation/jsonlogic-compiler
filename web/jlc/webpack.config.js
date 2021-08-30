@@ -10,7 +10,8 @@ module.exports = {
   mode: "production",
   entry: {
     index: "./js/index.js",
-    editor: "./js/editor.js"
+    editor: "./js/editor.js",
+    aifc: "./js/aifc.js"
   },
   experiments: { asyncWebAssembly: true },
   output: {
@@ -33,6 +34,7 @@ module.exports = {
   },
   plugins: [
     new MonacoWebpackPlugin({
+      languages: ["json"],
       globalApi: true
      }),
     new CopyPlugin({

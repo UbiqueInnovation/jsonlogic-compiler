@@ -68,7 +68,7 @@ pub grammar arithmetic() for str {
             Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(v.parse::<i128>().unwrap()))), l.to_owned())
         }
         --
-        _ "\"" d:dateTime() "\"" {  
+        _ "\"" d:dateTime() "\"" {
            let date = Expression::Atomic(Value::String(d.to_owned()));
            let unit = Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(0))), "day".to_string());
            Expression::Operation(Operation::PlusTime(Box::new(date), Box::new(unit)))
@@ -92,7 +92,15 @@ pub grammar arithmetic() for str {
              Expression::VarWithDefault(v.to_owned(),Value::String(s.to_owned()))
         }
         --
-        x:(@) or() y:@ { Expression::Operation(Operation::Or(Box::new(x), Box::new(y))) }
+        x:(@) or() y:@ {
+            Expression::Not(
+                Box::new(
+                    Expression::Operation(
+                        Operation::And(Box::new(Expression::Not(Box::new(x))), Box::new(Expression::Not(Box::new(y))))
+                    )
+                )
+            )
+        }
         --
         x:(@) and() y:@ { Expression::Operation(Operation::And(Box::new(x), Box::new(y))) }
         --
@@ -171,7 +179,7 @@ pub grammar arithmetic() for str {
         let expressions = switch_statements.pop().unwrap();
         let comparison = Comparison::ExactEqual(Box::new(e.clone()), Box::new(expressions.0));
         let last = Expression::Conditional{condition: Box::new(Expression::Comparison(comparison)), inner: Box::new(expressions.1), other: Some(Box::new(default_block))};
-        let mut final_element = last.clone();
+        let mut final_element = last;
         while let Some((cond, inner)) = switch_statements.pop() {
             let comparison = Comparison::ExactEqual(Box::new(e.clone()), Box::new(cond));
             let next = Expression::Conditional{
@@ -216,6 +224,41 @@ pub grammar arithmetic() for str {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn or_test() {
+        let expression = super::arithmetic::expression("true or false").unwrap();
+        println!("{}", expression.to_json_logic());
+        let json_logic = expression.to_json_logic();
+        let res = jsonlogic::apply(&json_logic, &serde_json::Value::Null)
+            .unwrap()
+            .as_bool()
+            .unwrap();
+        assert!(res);
+
+        let expression = super::arithmetic::expression("false or true").unwrap();
+        let json_logic = expression.to_json_logic();
+        let res = jsonlogic::apply(&json_logic, &serde_json::Value::Null)
+            .unwrap()
+            .as_bool()
+            .unwrap();
+        assert!(res);
+
+        let expression = super::arithmetic::expression("true or true").unwrap();
+        let json_logic = expression.to_json_logic();
+        let res = jsonlogic::apply(&json_logic, &serde_json::Value::Null)
+            .unwrap()
+            .as_bool()
+            .unwrap();
+        assert!(res);
+
+        let expression = super::arithmetic::expression("false or false").unwrap();
+        let json_logic = expression.to_json_logic();
+        let res = jsonlogic::apply(&json_logic, &serde_json::Value::Null)
+            .unwrap()
+            .as_bool()
+            .unwrap();
+        assert!(!res);
+    }
     #[test]
     fn test() {
         let expression = super::arithmetic::expression("now() + 3#years").unwrap();
@@ -266,25 +309,49 @@ mod tests {
     }
     #[test]
     fn test_time() {
-        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00""#).unwrap();
+        let time =
+            super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00""#)
+                .unwrap();
         println!("{}", time.to_json_logic());
-        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00:00""#).unwrap();
+        let time =
+            super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00:00""#)
+                .unwrap();
         println!("{}", time.to_json_logic());
-        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00:00.000""#).unwrap();
+        let time = super::arithmetic::expression(
+            r#""2020-01-01" is not before "2020-02-02T00:00:00.000""#,
+        )
+        .unwrap();
         println!("{}", time.to_json_logic());
-        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00Z""#).unwrap();
+        let time =
+            super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00Z""#)
+                .unwrap();
         println!("{}", time.to_json_logic());
-        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00:00Z""#).unwrap();
+        let time =
+            super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00:00Z""#)
+                .unwrap();
         println!("{}", time.to_json_logic());
-        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00+03""#).unwrap();
+        let time =
+            super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00+03""#)
+                .unwrap();
         println!("{}", time.to_json_logic());
-        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00+03:00""#).unwrap();
+        let time =
+            super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00+03:00""#)
+                .unwrap();
         println!("{}", time.to_json_logic());
-        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00:00.999+03""#).unwrap();
+        let time = super::arithmetic::expression(
+            r#""2020-01-01" is not before "2020-02-02T00:00:00.999+03""#,
+        )
+        .unwrap();
         println!("{}", time.to_json_logic());
-        let time = super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00:00.999+03:00""#).unwrap();
+        let time = super::arithmetic::expression(
+            r#""2020-01-01" is not before "2020-02-02T00:00:00.999+03:00""#,
+        )
+        .unwrap();
         println!("{}", time.to_json_logic());
-        let time = super::arithmetic::expression(r#"(a as DateTime) is not before "2020-02-02T00:00:00.999+03:00""#).unwrap();
+        let time = super::arithmetic::expression(
+            r#"(a as DateTime) is not before "2020-02-02T00:00:00.999+03:00""#,
+        )
+        .unwrap();
         println!("{}", time.to_json_logic());
         let time = super::arithmetic::expression(r#"a < 1"#).unwrap();
         println!("{}", time.to_json_logic());

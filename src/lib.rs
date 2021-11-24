@@ -245,10 +245,10 @@ impl std::fmt::Display for Operation {
 impl Operation {
     fn extract_inner_if_same<'other>(
         &'other self,
-        other: &'other Box<Expression>,
+        other: &'other Expression,
         storage: &mut Vec<serde_json::Value>,
     ) {
-        match (self, other.as_ref()) {
+        match (self, other) {
             (Operation::Plus(_, _), Expression::Operation(Operation::Plus(a, b)))
             | (Operation::And(_, _), Expression::Operation(Operation::And(a, b)))
             | (Operation::Or(_, _), Expression::Operation(Operation::Or(a, b))) => {

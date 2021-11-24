@@ -10,7 +10,7 @@ parser! {
 /// Doc comment
 pub grammar arithmetic() for str {
     rule var() -> &'input str = quiet!{$(!keyword() ['a'..='z' | 'A'..='Z']+[ '.' | 'a'..='z' | 'A'..='Z' |'0'..='9' | '_' |'-']*)}/expected!("Variable")
-    rule number() -> &'input str = quiet!{$(['0'..='9']+)} / expected!("Number")
+    rule number() -> &'input str = quiet!{$("-"?['0'..='9']+)} / expected!("Number")
     rule string() -> &'input str = quiet!{$([^'"']*)} / expected!("String")
     rule float() -> &'input str = quiet!{$(['0'..='9']+"."['0'..='9']+)} / expected!("Float")
     rule date() -> &'input str = $(['0'..='9']*<4>"-"['0'..='9']*<2>"-"['0'..='9']*<2>)
@@ -40,6 +40,8 @@ pub grammar arithmetic() for str {
     rule not() = _ ("!" / "not") _
     rule null_coercion() = _ "??" _
     rule now() = _ quiet!{"now" _ "(" _ ")"} _
+    rule min() = _ "min" _
+    rule max() = _ "max" _
 
     rule timeOperation() -> Expression = precedence!{
           x:(@) plus() y:@ {
@@ -217,7 +219,81 @@ pub grammar arithmetic() for str {
         Expression::Atomic(Value::Bool(b.parse().unwrap()))
     }
     rule this() -> Expression = _ quiet!{"this"} _ {Expression::Var("".to_owned())}
-    rule function() -> Expression = _ !(keyword()) func_name:var() _ "(" _ args:expression()++ "," _ ")" _ {Expression::Function(func_name.to_owned(), args)}
+    rule function() -> Expression = _ !(keyword()) func_name:var() _ "(" _ args:expression()++ "," _ ")" _ {
+        match func_name {
+            "min" => {
+
+                match args.len() {
+                    0 => {
+                         Expression::Function(func_name.to_owned(), args)
+                    },
+                    1 => {
+                        args[0].clone()
+                    },
+                    2 => {
+                        Expression::Conditional{condition: Box::new( Expression::Comparison(Comparison::LessThan(Box::new(args[0].clone()), Box::new(args[1].clone())))),
+                        inner: Box::new(args[0].clone()),
+                        other: Some(Box::new(args[1].clone()))
+                    }
+                    },
+                    _ => {
+                        let (a,b) = (args[0].clone(), args[1].clone());
+                        args.iter().fold(
+                            Expression::Conditional {
+                                condition: Box::new(Expression::Comparison(Comparison::LessThan(Box::new(a.clone()), Box::new(b.clone())))),
+                                inner: Box::new(a),
+                                other: Some(Box::new(b))
+                            }, |prev, next| {
+                                let (a,b) = (prev, next.clone());
+                                Expression::Conditional {
+                                    condition: Box::new(Expression::Comparison(Comparison::LessThan(Box::new(a.clone()), Box::new(b.clone())))),
+                                    inner: Box::new(a),
+                                    other: Some(Box::new(b))
+                                }
+                            }
+                        )
+                    }
+                }
+            },
+            "max" => {
+                match args.len() {
+                    0 => {
+                         Expression::Function(func_name.to_owned(), args)
+                    },
+                    1 => {
+                        args[0].clone()
+                    },
+                    2 => {
+                        Expression::Conditional{condition: Box::new( Expression::Comparison(Comparison::GreaterThan(Box::new(args[0].clone()), Box::new(args[1].clone())))),
+                        inner: Box::new(args[0].clone()),
+                        other: Some(Box::new(args[1].clone()))
+                    }
+                    },
+                    _ => {
+                        let (a,b) = (args[0].clone(), args[1].clone());
+                        args.iter().fold(
+                            Expression::Conditional {
+                                condition: Box::new(Expression::Comparison(Comparison::GreaterThan(Box::new(a.clone()), Box::new(b.clone())))),
+                                inner: Box::new(a),
+                                other: Some(Box::new(b))
+                            }, |prev, next| {
+                                let (a,b) = (prev, next.clone());
+                                Expression::Conditional {
+                                    condition: Box::new(Expression::Comparison(Comparison::GreaterThan(Box::new(a.clone()), Box::new(b.clone())))),
+                                    inner: Box::new(a),
+                                    other: Some(Box::new(b))
+                                }
+                            }
+                        )
+                    }
+                }
+            },
+            _ => {
+                Expression::Function(func_name.to_owned(), args)
+            }
+        }
+
+    }
 
     pub rule expression() -> Expression = (switch() / expected!("Switch")) / (conditionalWithElse()/ conditional()/ expected!("Conditional"))  / (timeOperation() / operation()   /expected!("Binary operator"))/ (arrayOperationWithArguments() / arrayOperation() / array()/expected!("Array expression"))  / (unary() / function()/expected!("Function"))
 }}
@@ -306,6 +382,43 @@ mod tests {
         )
         .unwrap();
         println!("{}", switch_expression.to_json_logic());
+    }
+    #[test]
+    fn test_min_desugar() {
+        let min_desugar = super::arithmetic::expression("if (a < b) {a} else {b}").unwrap();
+        let min = super::arithmetic::expression("min(a,b)").unwrap();
+        assert_eq!(min, min_desugar);
+
+        let min_desugared = super::arithmetic::expression("min(6,1,3,7)").unwrap();
+        let logic = min_desugared.to_json_logic();
+        let result = jsonlogic::apply(&logic, &serde_json::Value::Null).unwrap().as_i64().unwrap();
+        assert_eq!(result, 1);
+
+        let min_desugared = super::arithmetic::expression("min(-10,200,1,87)").unwrap();
+        let logic = min_desugared.to_json_logic();
+        let result = jsonlogic::apply(&logic, &serde_json::Value::Null).unwrap().as_i64().unwrap();
+        assert_eq!(result, -10);
+    }
+    #[test]
+    fn test_max_desugar() {
+        let min_desugar = super::arithmetic::expression("if (a > b) {a} else {b}").unwrap();
+        let min = super::arithmetic::expression("max(a,b)").unwrap();
+        assert_eq!(min, min_desugar);
+
+        let max_desugared = super::arithmetic::expression("max(6,1,3,7)").unwrap();
+        let logic = max_desugared.to_json_logic();
+        let result = jsonlogic::apply(&logic, &serde_json::Value::Null).unwrap().as_i64().unwrap();
+        assert_eq!(result, 7);
+
+        let max_desugared = super::arithmetic::expression("max(-10,200,1,87)").unwrap();
+        let logic = max_desugared.to_json_logic();
+        let result = jsonlogic::apply(&logic, &serde_json::Value::Null).unwrap().as_i64().unwrap();
+        assert_eq!(result, 200);
+
+         let max_desugared = super::arithmetic::expression("max(1000,200,1,87)").unwrap();
+        let logic = max_desugared.to_json_logic();
+        let result = jsonlogic::apply(&logic, &serde_json::Value::Null).unwrap().as_i64().unwrap();
+        assert_eq!(result, 1000);
     }
     #[test]
     fn test_time() {

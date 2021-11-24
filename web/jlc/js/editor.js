@@ -6,6 +6,15 @@
 import * as monaco from 'monaco-editor';
 import "./aifc";
 
+self.MonacoEnvironment = {
+    getWorkerUrl: function (moduleId, label) {
+        if (label === 'json') {
+            return './json.worker.bundle.js';
+        }
+        return './editor.worker.bundle.js';
+    }
+};
+
 var logic = monaco.editor.create(document.getElementById("logic"), {
     value: "payload.v.0",
     language: "aifc",

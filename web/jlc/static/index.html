@@ -11,6 +11,12 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
+    @font-face {
+    font-family: "codicon";
+    src:
+    url(https://raw.githubusercontent.com/microsoft/vscode-codicons/482a516fd42a0a0262725638300ba0fe0c106bbf/dist/codicon.ttf)
+    format("truetype");
+    }
     body {
       padding: 20px;
     }
@@ -37,9 +43,9 @@
       display: none;
     }
 
-    textarea {
+    /* textarea {
       font-family: monospace;
-    }
+    } */
 
     #x {
       width: 600px;
@@ -52,7 +58,7 @@
 </head>
 
 <body>
-  <script src="index.js"></script>
+  <script src="index.bundle.js"></script>
 
   <h1> Logic to JsonLogic</h1>
   <p>Compile AifC (AST is for Computers) to json_logic
@@ -80,7 +86,7 @@
     </div>
   </div>
 
-  <script src="./editor.js"></script>
+  <script src="./editor.bundle.js"></script>
 </body>
 
 </html>

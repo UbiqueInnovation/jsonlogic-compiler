@@ -85,7 +85,16 @@ monaco.editor.defineTheme('aifcTheme', {
             foreground: '181D27',
             fontStyle: "italic"
         },
-    ]
+    ],
+    colors: {
+        'editor.foreground': '#000000',
+        'editor.background': '#FFFFFF',
+        'editorCursor.foreground': '#8B0000',
+        'editor.lineHighlightBackground': '#11111111',
+        'editorLineNumber.foreground': '#008800',
+        'editor.selectionBackground': '#88000030',
+        'editor.inactiveSelectionBackground': '#88000015'
+    }
 });
 
 // Register a completion item provider for the new language

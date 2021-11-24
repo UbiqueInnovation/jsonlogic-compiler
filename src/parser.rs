@@ -81,9 +81,7 @@ pub grammar arithmetic() for str {
         }
         --
         _ v:var() _ "as DateTime" _ {
-            let unit = Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(0))), "day".to_string());
-            let date = Expression::Var(v.to_owned());
-            Expression::Operation(Operation::PlusTime(Box::new(date), Box::new(unit)))
+            Expression::Var(v.to_owned())
         }
         --
         _ "(" _ e:expression() _ ")" _ { e }

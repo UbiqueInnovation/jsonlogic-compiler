@@ -1,0 +1,12 @@
+[package]
+name = "aifc"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+colorize = "0.1.0"
+jlc = {path = "../"}
+serde_json = "1.0.72"
+structopt = "0.3.25"

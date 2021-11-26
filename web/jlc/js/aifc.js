@@ -14,6 +14,7 @@ monaco.languages.register({
 monaco.languages.setMonarchTokensProvider('aifc', {
     tokenizer: {
         root: [
+            [/\/\*[^]*\*\//sm, "comment"],
             [/\b(if|else|switch|as|null|undefined)\b/, "keyword"],
             [/\:\:(\w+)/, "function"],
             [/_\s+=>/, "default-case"],
@@ -37,8 +38,14 @@ monaco.editor.defineTheme('aifcTheme', {
     base: 'vs',
     inherit: false,
     rules: [{
+            token: 'comment',
+            foreground: 'AAAAAA',
+            fontStyle: "italic"
+        },
+        {
             token: 'keyword',
-            foreground: '181D27'
+            foreground: '181D27',
+            fontStyle: 'underline'
         },
         {
             token: 'operator',
@@ -100,7 +107,7 @@ monaco.editor.defineTheme('aifcTheme', {
 // Register a completion item provider for the new language
 monaco.languages.registerCompletionItemProvider('aifc', {
     provideCompletionItems: (model, position) => {
-        
+
         var word = model.getWordUntilPosition(position);
         var range = {
             startLineNumber: position.lineNumber,
@@ -111,22 +118,22 @@ monaco.languages.registerCompletionItemProvider('aifc', {
         var path = word.word.split(".");
         console.log(path);
         var prefix = "";
-        var last = window.dataModel === undefined? [] : window.dataModel; 
+        var last = window.dataModel === undefined ? [] : window.dataModel;
         for (var segment of path) {
             if (last[segment.trim()] !== undefined) {
                 last = last[segment];
-                prefix += prefix == ""? segment:  "." + segment;
+                prefix += prefix == "" ? segment : "." + segment;
             } else {
                 // last = undefined;
                 break;
             }
         }
-        var suggestions = last === undefined? [] : Object.keys(last).map((val, i, a) => {
+        var suggestions = last === undefined ? [] : Object.keys(last).map((val, i, a) => {
             return {
-                label: prefix== ""? val : prefix + "." + val,
+                label: prefix == "" ? val : prefix + "." + val,
                 kind: monaco.languages.CompletionItemKind.Field,
                 documentation: prefix == "" ? val : prefix + "." + val,
-                insertText: prefix == ""? val : prefix+"."+val
+                insertText: prefix == "" ? val : prefix + "." + val
             };
         });
         console.log(suggestions);

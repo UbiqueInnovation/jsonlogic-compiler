@@ -17,7 +17,7 @@ pub grammar arithmetic() for str {
     rule time() -> &'input str = $(['0'..='9']*<2>":"['0'..='9']*<2>(":"['0'..='9']*<2>("."['0'..='9']+)?)?)
     rule offset() -> &'input str = $((("+"/"-")['0'..='9']*<2>(":"['0'..='9']*<2>)?)/"Z")
     rule dateTime() -> &'input str = $(date()("T" time()(offset())?)?)
-    rule time_interval() -> &'input str = quiet!{$("#" ("years" / "year" / "months" / "month" / "days" / "day" / "hours" / "hour" /"minutes"/ "minute" / "seconds"/ "second"))} / expected!("Time interval (year,month,hour,minut,second)")
+    rule time_interval() -> &'input str = quiet!{$(_ "#" _ ("years" / "year" / "months" / "month" / "days" / "day" / "hours" / "hour" /"minutes"/ "minute" / "seconds"/ "second"))} / expected!("Time interval (year,month,hour,minut,second)")
     rule bool() -> &'input str = quiet!{$("true" / "false")} /expected!("Boolean")
     rule _ = quiet!{[' ' | '\n']*}
     rule plus() = _ ("+"/ "plus")  _
@@ -42,6 +42,9 @@ pub grammar arithmetic() for str {
     rule now() = _ quiet!{"now" _ "(" _ ")"} _
     rule min() = _ "min" _
     rule max() = _ "max" _
+    rule comment() -> Expression = _ "/*" _ comment:($((!("*/")['\0'..='\x7f'])*)) _ "*/" _ {
+        Expression::Comment(comment.to_string())
+    }
 
     rule timeOperation() -> Expression = precedence!{
           x:(@) plus() y:@ {
@@ -64,14 +67,14 @@ pub grammar arithmetic() for str {
         }
         --
         _ v:var() l:time_interval() _ {
-            let l = l.strip_prefix("#").unwrap();
+            let l = l.trim().strip_prefix("#").unwrap();
             let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
-            Expression::TimeInterval(Box::new(Expression::Var(v.to_owned())), l.to_owned())
+            Expression::TimeInterval(Box::new(Expression::Var(v.to_owned())), l.trim().to_owned())
         }
         _ v:number() l:time_interval() {
-            let l = l.strip_prefix("#").unwrap();
+            let l = l.trim().strip_prefix("#").unwrap();
             let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
-            Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(v.parse::<i128>().unwrap()))), l.to_owned())
+            Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(v.parse::<i128>().unwrap()))), l.trim().to_owned())
         }
         --
         _ "\"" d:dateTime() "\"" {
@@ -328,11 +331,15 @@ pub grammar arithmetic() for str {
 
     }
 
-    pub rule expression() -> Expression = (switch() / expected!("Switch")) / (conditionalWithElse()/ conditional()/ expected!("Conditional"))  / (timeOperation() / operation()   /expected!("Binary operator"))/ (arrayOperationWithArguments() / arrayOperation() / array()/expected!("Array expression"))  / (unary() / function()/expected!("Function"))
+    pub rule expression() -> Expression = c1:comment()? e:((switch() / expected!("Switch")) / (conditionalWithElse()/ conditional()/ expected!("Conditional"))  / (timeOperation() / operation()   /expected!("Binary operator"))/ (arrayOperationWithArguments() / arrayOperation() / array()/expected!("Array expression"))  / (unary() / function()/expected!("Function"))) {
+        e
+    }
 }}
 
 #[cfg(test)]
 mod tests {
+    use crate::to_json_logic;
+
     #[test]
     fn or_test() {
         let expression = super::arithmetic::expression("true or false").unwrap();
@@ -517,4 +524,80 @@ mod tests {
         let time = super::arithmetic::expression(r#"a < 1"#).unwrap();
         println!("{}", time.to_json_logic());
     }
+    #[test]
+    fn test_comment() {
+        let _ = to_json_logic! {{
+             /* This is a comment */
+            if (a < b) {
+                /**/
+                if (c < b) {
+                    /*
+                        This is a multiline comment
+                    */
+                    c
+                }
+            }
+        }};
+    }
+
+    #[test]
+    fn test_macro() {
+         let logic = to_json_logic! ({
+            if (payload.v.0) {
+                if (payload.v.0.mp in ["EU/1/20/1525"]
+                    && payload.v.0.dn === 1) {
+                    (payload.v.0.dt as DateTime) + 386#days
+                } else {
+                    if(payload.v.0.mp in ["BBIBP-CorV_T","CoronaVac_T","Covaxin_T"]) {
+                        if (payload.h.iat) {
+                                min((payload.v.0.dt as DateTime) + 364#days, (payload.h.iat as DateTime) + 29#days)
+                        } else {
+                            undefined
+                        }
+                    }  else {
+                            (payload.v.0.dt as DateTime) + 364#days
+                    }
+                }
+            } else {
+                if (payload.t.0) {
+                    if (payload.t.0.tt === "LP6464-4") {
+                        (payload.t.0.sc as DateTime) + 72#hours
+                    }else {
+                        if (payload.t.0.tt === "LP217198-3") {
+                            (payload.t.0.sc as DateTime) + 48#hours
+                        } else {
+                            if(payload.t.0.tt === "94504-8"){
+                                (payload.t.0.sc as DateTime) + 89#days
+                            }  else {
+                                    undefined
+                            }
+                        }
+                    }
+                } else {
+                    if (payload.r.0) {
+                        (payload.r.0.fr as DateTime) + 364#days
+                    } else {
+                        undefined
+                    }
+                }
+            }
+        });
+        println!("{}", logic.to_string());
+    }
+}
+
+#[macro_export]
+macro_rules! to_json_logic {
+    ($the_code:tt) => {{
+        println!("{}", stringify!($the_code));
+        let block_string = stringify!($the_code)
+            .strip_prefix("{")
+            .unwrap()
+            .strip_suffix("}")
+            .unwrap();
+        let block_string = block_string.replace("== =", "===");
+        crate::arithmetic::expression(&block_string)
+            .unwrap()
+            .to_json_logic()
+    }};
 }

@@ -24,7 +24,8 @@ pub enum Expression {
     Array(Vec<Expression>),
     ArrayOperation(Box<Expression>, String, Box<Expression>),
     ArrayOperationWithArguments(Box<Expression>, String, Box<Expression>, Vec<Expression>),
-    Function(String, Vec<Expression>)
+    Function(String, Vec<Expression>),
+    Comment(String)
 }
 
 impl Expression {
@@ -119,6 +120,9 @@ impl Expression {
                         b
                     ]
                 })
+            }
+            _ => {
+                serde_json::Value::Null
             }
         }
     }

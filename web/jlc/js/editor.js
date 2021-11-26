@@ -33,7 +33,7 @@ logic.addAction({
     keybindings: [
         // chord
         monaco.KeyMod.chord(
-            monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S,
+            monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
         )
     ],
 
@@ -78,7 +78,7 @@ json.addAction({
     keybindings: [
         // chord
         monaco.KeyMod.chord(
-            monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S,
+            monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
         )
     ],
 
@@ -125,7 +125,7 @@ dataEditor.addAction({
     keybindings: [
         // chord
         monaco.KeyMod.chord(
-            monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S,
+            monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
         )
     ],
 

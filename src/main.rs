@@ -2,16 +2,21 @@ use jlc;
 
 fn main() {
     let expression = jlc::arithmetic::expression(r#"
+        /* TEST COMMENT */
         if ( 
+            /* OTHER */
             payload.v.0.tg === external.acceptance-criterias.diseases.sarscov2 ?? "test"
-            && payload.v.0.dn >= payload.v.0.sd 
+            && 
+            payload.v.0.dn >= payload.v.0.sd 
             && payload.v.0.sd >= 2
             && payload.v.0.dn == 2
         )
         {
+             /* OTHER */
             true
         } else
         { 
+             /* OTHER */
             false
         }
     "#).unwrap();

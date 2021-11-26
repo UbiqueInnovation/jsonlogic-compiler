@@ -192,9 +192,12 @@ pub grammar arithmetic() for str {
         --
          _ "(" _ e:expression() _ ")" _ { e }
     }
+    rule switch_if() -> Expression = _ _ ":" _ "if" second:expression() {
+        second
+    }
 
-    rule switch_block() -> (Expression,Expression) = _ label:expression() _"=>" _ "{" _ e:expression() _"}" _ {
-       (label, e)
+    rule switch_block() -> (Expression,Expression, Option<Expression>) = _ label:expression() second:switch_if()? _"=>" _ "{" _ e:expression() _"}" _ {
+       (label, e, second)
     }
     rule default_switch_block() -> Expression = _ "_" _ "=>" _ "{" _ e:expression()  _ "}" _ {
         e
@@ -208,15 +211,24 @@ pub grammar arithmetic() for str {
         } else {
             Expression::Comparison(Comparison::ExactEqual(Box::new(e.clone()), Box::new(expressions.0)))
        };
+       let comparison = if let Some(expression) = expressions.2 {
+            Expression::Operation(Operation::And(Box::new(comparison), Box::new(expression)))
+       } else {
+           comparison
+       };
        let last = Expression::Conditional{condition: Box::new(comparison), inner: Box::new(expressions.1), other: Some(Box::new(default_block))};
         let mut final_element = last;
-        while let Some((cond, inner)) = switch_statements.pop() {
-            println!("{:?}", cond);
-             let condition = if matches!(cond, Expression::Array(..) | Expression::ArrayOperation( ..) | Expression::ArrayOperationWithArguments(..)) {
+        while let Some((cond, inner, second)) = switch_statements.pop() {
+             let comparison = if matches!(cond, Expression::Array(..) | Expression::ArrayOperation( ..) | Expression::ArrayOperationWithArguments(..)) {
                 Box::new(Expression::Function("in".into(), vec![e.clone(), cond]))
             } else {
                 let comparison = Comparison::ExactEqual(Box::new(e.clone()), Box::new(cond));
                 Box::new(Expression::Comparison(comparison))
+            };
+            let condition = if let Some(second) = second {
+                Box::new(Expression::Operation(Operation::And(comparison, Box::new(second))))
+            } else {
+                comparison
             };
             let next = Expression::Conditional{
                 condition,
@@ -432,7 +444,7 @@ mod tests {
         let switch_expression = super::arithmetic::expression(
             r#"
         switch(a) {
-            ["fourth", "fifth", "sixth"] => {
+            ["my", "and", "case"] : if a.mp === "test" => {
                 e
             }
             "test" => {

@@ -202,13 +202,24 @@ pub grammar arithmetic() for str {
     rule switch() -> Expression = _ quiet!{"switch"} _ "(" _ e:expression() _ ")" _ "{" _ switch_statements:switch_block()++ _ default_block:(quiet!{default_switch_block()}/ expected!("Exhaustive Switch")) _ "}" _ {
         let mut switch_statements = switch_statements;
         let expressions = switch_statements.pop().unwrap();
-        let comparison = Comparison::ExactEqual(Box::new(e.clone()), Box::new(expressions.0));
-        let last = Expression::Conditional{condition: Box::new(Expression::Comparison(comparison)), inner: Box::new(expressions.1), other: Some(Box::new(default_block))};
+
+        let comparison = if matches!(expressions.0, Expression::Array(..) | Expression::ArrayOperation( ..) | Expression::ArrayOperationWithArguments(..)) {
+            Expression::Function("in".into(), vec![e.clone(), expressions.0])
+        } else {
+            Expression::Comparison(Comparison::ExactEqual(Box::new(e.clone()), Box::new(expressions.0)))
+       };
+       let last = Expression::Conditional{condition: Box::new(comparison), inner: Box::new(expressions.1), other: Some(Box::new(default_block))};
         let mut final_element = last;
         while let Some((cond, inner)) = switch_statements.pop() {
-            let comparison = Comparison::ExactEqual(Box::new(e.clone()), Box::new(cond));
+            println!("{:?}", cond);
+             let condition = if matches!(cond, Expression::Array(..) | Expression::ArrayOperation( ..) | Expression::ArrayOperationWithArguments(..)) {
+                Box::new(Expression::Function("in".into(), vec![e.clone(), cond]))
+            } else {
+                let comparison = Comparison::ExactEqual(Box::new(e.clone()), Box::new(cond));
+                Box::new(Expression::Comparison(comparison))
+            };
             let next = Expression::Conditional{
-                condition: Box::new(Expression::Comparison(comparison)),
+                condition,
                 inner: Box::new(inner),
                 other: Some(Box::new(final_element))
             };
@@ -421,14 +432,22 @@ mod tests {
         let switch_expression = super::arithmetic::expression(
             r#"
         switch(a) {
+            ["fourth", "fifth", "sixth"] => {
+                e
+            }
             "test" => {
                 b
             }
+            
             "other" => {
                 c
             }
+           
             "third" => {
                 d
+            }
+            ["fourth", "fifth", "sixth"] => {
+                e
             }
             _ => {
                 undefined
@@ -439,6 +458,7 @@ mod tests {
         .unwrap();
         println!("{}", switch_expression.to_json_logic());
     }
+
     #[test]
     fn test_min_desugar() {
         let min_desugar = super::arithmetic::expression("if (a < b) {a} else {b}").unwrap();
@@ -561,12 +581,11 @@ mod tests {
         let logic = super::arithmetic::expression("a as Boolean").unwrap();
         let expr = super::arithmetic::expression("not not a").unwrap();
         assert_eq!(expr.to_json_logic(), logic.to_json_logic());
-
     }
 
     #[test]
     fn test_macro() {
-         let logic = to_json_logic! ({
+        let logic = to_json_logic! ({
             if (payload.v.0) {
                 if (payload.v.0.mp in ["EU/1/20/1525"]
                     && payload.v.0.dn === 1) {

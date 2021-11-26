@@ -66,6 +66,18 @@ pub grammar arithmetic() for str {
              Expression::Operation(Operation::PlusTime(Box::new(Expression::Var("external.validationClock".to_owned())), Box::new(unit)))
         }
         --
+         x:(@) or() y:@ {
+            Expression::Not(
+                Box::new(
+                    Expression::Operation(
+                        Operation::And(Box::new(Expression::Not(Box::new(x))), Box::new(Expression::Not(Box::new(y))))
+                    )
+                )
+            )
+        }
+        --
+        x:(@) and() y:@ { Expression::Operation(Operation::And(Box::new(x), Box::new(y))) }
+        --
         _ v:var() l:time_interval() _ {
             let l = l.trim().strip_prefix("#").unwrap();
             let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
@@ -331,7 +343,7 @@ pub grammar arithmetic() for str {
 
     }
 
-    pub rule expression() -> Expression = c1:comment()? e:((switch() / expected!("Switch")) / (conditionalWithElse()/ conditional()/ expected!("Conditional"))  / (timeOperation() / operation()   /expected!("Binary operator"))/ (arrayOperationWithArguments() / arrayOperation() / array()/expected!("Array expression"))  / (unary() / function()/expected!("Function"))) {
+    pub rule expression() -> Expression = c1:comment()? e:((switch() / expected!("Switch")) / (conditionalWithElse()/ conditional()/ expected!("Conditional"))  / ( timeOperation() / operation()   /expected!("Binary operator"))/ (arrayOperationWithArguments() / arrayOperation() / array()/expected!("Array expression"))  / (unary() / function()/expected!("Function"))) {
         e
     }
 }}
@@ -391,7 +403,7 @@ mod tests {
     #[test]
     fn array_expr_test() {
         let array_expression =
-            super::arithmetic::expression("[1,2,3,4,5].filter { this % 2 == 0 }").unwrap();
+            super::arithmetic::expression("[1,2,3,4,5]::filter { this % 2 == 0 }").unwrap();
         println!("{}", array_expression.to_json_logic());
     }
 

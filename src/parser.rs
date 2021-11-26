@@ -102,6 +102,10 @@ pub grammar arithmetic() for str {
         _ "(" _ e:expression() _ ")" _ { e }
     }
 
+    rule booleanCast() -> Expression = _ v:var() _ "as Boolean" _ {
+        Expression::Not(Box::new(Expression::Not(Box::new(Expression::Var(v.to_string())))))
+    }
+
     rule operation() -> Expression = precedence!{
         v:var() null_coercion() f:float() {
             Expression::VarWithDefault(v.to_owned(),Value::Float(f.parse::<f64>().unwrap()))
@@ -343,7 +347,7 @@ pub grammar arithmetic() for str {
 
     }
 
-    pub rule expression() -> Expression = c1:comment()? e:((switch() / expected!("Switch")) / (conditionalWithElse()/ conditional()/ expected!("Conditional"))  / ( timeOperation() / operation()   /expected!("Binary operator"))/ (arrayOperationWithArguments() / arrayOperation() / array()/expected!("Array expression"))  / (unary() / function()/expected!("Function"))) {
+    pub rule expression() -> Expression = c1:comment()? e:(booleanCast() / (switch() / expected!("Switch")) / (conditionalWithElse()/ conditional()/ expected!("Conditional"))  / ( timeOperation() / operation()   /expected!("Binary operator"))/ (arrayOperationWithArguments() / arrayOperation() / array()/expected!("Array expression"))  / (unary() / function()/expected!("Function"))) {
         e
     }
 }}
@@ -550,6 +554,14 @@ mod tests {
                 }
             }
         }};
+    }
+
+    #[test]
+    fn test_boolean_cast() {
+        let logic = super::arithmetic::expression("a as Boolean").unwrap();
+        let expr = super::arithmetic::expression("not not a").unwrap();
+        assert_eq!(expr.to_json_logic(), logic.to_json_logic());
+
     }
 
     #[test]

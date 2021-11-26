@@ -3,10 +3,15 @@ name = "aifc"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "aifc"
+crate-type = ["rlib", "cdylib"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 colorize = "0.1.0"
 jlc = {path = "../"}
+jni = "0.19.0"
 serde_json = "1.0.72"
 structopt = "0.3.25"

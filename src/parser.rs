@@ -42,11 +42,11 @@ pub grammar arithmetic() for str {
     rule now() = _ quiet!{"now" _ "(" _ ")"} _
     rule min() = _ "min" _
     rule max() = _ "max" _
-    rule comment() -> Expression = _ "/*" _ comment:($((!("*/")['\0'..='\x7f'])*)) _ "*/" _ {
-        Expression::Comment(comment.to_string())
+    rule comment() -> Statement = _ "/*" _ comment:($((!("*/")['\0'..='\x7f'])*)) _ "*/" _ {
+        Statement::Comment(comment.to_string())
     }
 
-    rule timeOperation() -> Expression = precedence!{
+    rule timeOperation(stmts: &[Statement]) -> Expression = precedence!{
           x:(@) plus() y:@ {
             Expression::Operation(Operation::PlusTime(Box::new(x), Box::new(y)))
 
@@ -81,7 +81,8 @@ pub grammar arithmetic() for str {
         _ v:var() l:time_interval() _ {
             let l = l.trim().strip_prefix("#").unwrap();
             let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
-            Expression::TimeInterval(Box::new(Expression::Var(v.to_owned())), l.trim().to_owned())
+            let ex =  replace_variable(stmts, v, Expression::Var(v.to_owned()));
+            Expression::TimeInterval(Box::new(ex), l.trim().to_owned())
         }
         _ v:number() l:time_interval() {
             let l = l.trim().strip_prefix("#").unwrap();
@@ -96,17 +97,18 @@ pub grammar arithmetic() for str {
         }
         --
         _ v:var() _ "as DateTime" _ {
-            Expression::Var(v.to_owned())
+            replace_variable(stmts, v, Expression::Var(v.to_owned()))
         }
         --
-        _ "(" _ e:expression() _ ")" _ { e }
+        _ "(" _ e:expression_with_satements(stmts) _ ")" _ { e }
     }
 
-    rule booleanCast() -> Expression = _ v:var() _ "as Boolean" _ {
-        Expression::Not(Box::new(Expression::Not(Box::new(Expression::Var(v.to_string())))))
+    rule booleanCast(stmts: &[Statement]) -> Expression = _ v:var() _ "as Boolean" _ {
+        let ex =  replace_variable(stmts, v, Expression::Var(v.to_owned()));
+        Expression::Not(Box::new(Expression::Not(Box::new(ex))))
     }
 
-    rule operation() -> Expression = precedence!{
+    rule operation(stmts: &[Statement]) -> Expression = precedence!{
         v:var() null_coercion() f:float() {
             Expression::VarWithDefault(v.to_owned(),Value::Float(f.parse::<f64>().unwrap()))
         }
@@ -154,13 +156,13 @@ pub grammar arithmetic() for str {
         }
 
         --
-           _ v:varUnary() _ "in" _ a:(array() / varUnary()) {
+           _ v:varUnary(stmts) _ "in" _ a:(array(stmts) / varUnary(stmts)) {
             Expression::Function("in".to_string(),vec![v,a])
         }
         --
-        _ f:function() _ {f}
-        _ a:arrayOperation() _ {a}
-        _ a:arrayOperationWithArguments() _ {a}
+        _ f:function(stmts) _ {f}
+        _ a:arrayOperation(stmts) _ {a}
+        _ a:arrayOperationWithArguments(stmts) _ {a}
 
         --
         x:(@) lt() y:@ { Expression::Comparison(Comparison::LessThan(Box::new(x), Box::new(y))) }
@@ -179,7 +181,9 @@ pub grammar arithmetic() for str {
          _ t:this() _ {t}
         _ l:bool() _ {Expression::Atomic(Value::Bool(l.parse::<bool>().unwrap()))}
         --
-        _ v:var() _ {Expression::Var(v.to_owned())}
+        _ v:var() _ {
+            replace_variable(stmts, v,  Expression::Var(v.to_owned()))
+        }
         --
         _ f:float() _ {Expression::Atomic(Value::Float(f.parse::<f64>().unwrap()))}
         _ l:number() _ {Expression::Atomic(Value::Int(l.parse::<i128>().unwrap()))}
@@ -188,21 +192,21 @@ pub grammar arithmetic() for str {
             Expression::Atomic(Value::String(s.to_owned()))
         }
         --
-         _ "[" _ e:expression()** _ "," _ "]" _ { Expression::Array(e)}
+         _ "[" _ e:expression_with_satements(stmts)** _ "," _ "]" _ { Expression::Array(e)}
         --
-         _ "(" _ e:expression() _ ")" _ { e }
+         _ "(" _ e:expression_with_satements(stmts) _ ")" _ { e }
     }
-    rule switch_if() -> Expression = _ _ ":" _ "if" second:expression() {
+    rule switch_if(stmts: &[Statement]) -> Expression = _ _ ":" _ "if" second:expression_with_satements(stmts) {
         second
     }
 
-    rule switch_block() -> (Expression,Expression, Option<Expression>) = _ label:expression() second:switch_if()? _"=>" _ "{" _ e:expression() _"}" _ {
+    rule switch_block(stmts: &[Statement]) -> (Expression,Expression, Option<Expression>) = _ label:expression_with_satements(stmts) second:switch_if(stmts)? _"=>" _ "{" _ e:expression_with_satements(stmts) _"}" _ {
        (label, e, second)
     }
-    rule default_switch_block() -> Expression = _ "_" _ "=>" _ "{" _ e:expression()  _ "}" _ {
+    rule default_switch_block(stmts: &[Statement]) -> Expression = _ "_" _ "=>" _ "{" _ e:expression_with_satements(stmts)  _ "}" _ {
         e
     }
-    rule switch() -> Expression = _ quiet!{"switch"} _ "(" _ e:expression() _ ")" _ "{" _ switch_statements:switch_block()++ _ default_block:(quiet!{default_switch_block()}/ expected!("Exhaustive Switch")) _ "}" _ {
+    rule switch(stmts: &[Statement]) -> Expression = _ quiet!{"switch"} _ "(" _ e:expression_with_satements(stmts) _ ")" _ "{" _ switch_statements:switch_block(stmts)++ _ default_block:(quiet!{default_switch_block(stmts)}/ expected!("Exhaustive Switch")) _ "}" _ {
         let mut switch_statements = switch_statements;
         let expressions = switch_statements.pop().unwrap();
 
@@ -239,33 +243,35 @@ pub grammar arithmetic() for str {
         }
         final_element
     }
-    rule conditional() -> Expression = _  quiet!{"if"} _ "(" _ e:expression() _ ")" _ "{" _ i:expression() _ "}" _ {
+    rule conditional(stmts: &[Statement]) -> Expression = _  quiet!{"if"} _ "(" _ e:expression_with_satements(stmts) _ ")" _ "{" _ i:expression_with_satements(stmts) _ "}" _ {
         Expression::Conditional{condition: Box::new(e), inner: Box::new(i), other: None}
     }
-    rule conditionalWithElse() -> Expression = _  quiet!{"if"} _ "(" _ e:expression() _ ")" _ "{" _ i:expression() _ "}" _ "else" _ "{" _ o:expression() _ "}" _ {
+    rule conditionalWithElse(stmts: &[Statement]) -> Expression = _  quiet!{"if"} _ "(" _ e:expression_with_satements(stmts) _ ")" _ "{" _ i:expression_with_satements(stmts) _ "}" _ "else" _ "{" _ o:expression_with_satements(stmts) _ "}" _ {
         Expression::Conditional{condition: Box::new(e), inner: Box::new(i), other: Some(Box::new(o))}
     }
-    rule unary() -> Expression = _ now() _ {
+    rule unary(stmts: &[Statement]) -> Expression = _ now() _ {
         Expression::Var("external.validationClock".to_owned())
     }
 
     rule keyword() = "if"/"switch"/"else"/"this"/ "true" / "false"
 
-    rule array() -> Expression =  _ "[" _ e:expression()** "," _ "]" _ { Expression::Array(e)}
+    rule array(stmts: &[Statement]) -> Expression =  _ "[" _ e:expression_with_satements(stmts)** "," _ "]" _ { Expression::Array(e)}
 
-    rule varUnary() -> Expression = _ v:var() _ {Expression::Var(v.to_owned())}
+    rule varUnary(stmts: &[Statement]) -> Expression = _ v:var() _ {
+        replace_variable(stmts, v, Expression::Var(v.to_owned()))
+    }
 
-    rule arrayOperation() -> Expression = _ expr:(array() / varUnary()) _ "::" _ function:var() _ "{" _ inner:expression() _"}" {
+    rule arrayOperation(stmts: &[Statement]) -> Expression = _ expr:(array(stmts) / varUnary(stmts)) _ "::" _ function:var() _ "{" _ inner:expression_with_satements(stmts) _"}" {
         Expression::ArrayOperation(Box::new(expr), function.to_owned(), Box::new(inner))
     }
-      rule arrayOperationWithArguments() -> Expression = _ expr:(array() / varUnary()) _ "::" _ function:var() _ "(" args:expression()** "," _ ")" _ "{" _ inner:expression() _"}" {
+      rule arrayOperationWithArguments(stmts: &[Statement]) -> Expression = _ expr:(array(stmts) / varUnary(stmts)) _ "::" _ function:var() _ "(" args:expression_with_satements(stmts)** "," _ ")" _ "{" _ inner:expression_with_satements(stmts) _"}" {
         Expression::ArrayOperationWithArguments(Box::new(expr), function.to_owned(), Box::new(inner), args)
     }
-    rule booleanExpression() -> Expression = b:bool() {
+    rule booleanExpression(stmts: &[Statement]) -> Expression = b:bool() {
         Expression::Atomic(Value::Bool(b.parse().unwrap()))
     }
     rule this() -> Expression = _ quiet!{"this"} _ {Expression::Var("".to_owned())}
-    rule function() -> Expression = _ !(keyword()) func_name:var() _ "(" _ args:expression()++ "," _ ")" _ {
+    rule function(stmts: &[Statement]) -> Expression = _ !(keyword()) func_name:var() _ "(" _ args:expression_with_satements(stmts)++ "," _ ")" _ {
         match func_name {
             "min" => {
 
@@ -369,16 +375,61 @@ pub grammar arithmetic() for str {
         }
 
     }
+    rule variable_assignment() -> Statement = _ "let" _ v:var() _ "=" _ e:expression() _ ";" _ {
+        Statement::VariableAssignment{name: v.to_string(), expression: Box::new(e)}
+    }
+    rule statement() -> Statement = _ c:(comment() / variable_assignment()) _ {
+        c
+    }
 
-    pub rule expression() -> Expression = c1:comment()? e:(booleanCast() / (switch() / expected!("Switch")) / (conditionalWithElse()/ conditional()/ expected!("Conditional"))  / ( timeOperation() / operation()   /expected!("Binary operator"))/ (arrayOperationWithArguments() / arrayOperation() / array()/expected!("Array expression"))  / (unary() / function()/expected!("Function"))) {
+    rule expression_with_satements(old: &[Statement]) -> Expression = stmts:(statement())* e:(booleanCast((&extended_statements(&stmts, old))) / (switch((&extended_statements(&stmts, old))) / expected!("Switch")) / (conditionalWithElse((&(extended_statements(&stmts, old))))/ conditional((&(extended_statements(&stmts, old))))/ expected!("Conditional"))  / ( timeOperation((&extended_statements(&stmts, old))) / operation((&extended_statements(&stmts, old)))   /expected!("Binary operator"))/ (arrayOperationWithArguments((&extended_statements(&stmts, old))) / arrayOperation((&extended_statements(&stmts, old))) / array((&extended_statements(&stmts, old)))/expected!("Array expression"))  / (unary((&extended_statements(&stmts, old))) / function((&extended_statements(&stmts, old)))/expected!("Function"))) {
+        e
+    }
+
+    pub rule expression() -> Expression = stmts:(statement())* e:(booleanCast((&stmts)) / (switch((&stmts)) / expected!("Switch")) / (conditionalWithElse((&(stmts)))/ conditional((&(stmts)))/ expected!("Conditional"))  / ( timeOperation((&stmts)) / operation((&stmts))   /expected!("Binary operator"))/ (arrayOperationWithArguments((&stmts)) / arrayOperation((&stmts)) / array((&stmts))/expected!("Array expression"))  / (unary((&stmts)) / function((&stmts))/expected!("Function"))) {
         e
     }
 }}
+fn replace_variable(stmts: &[Statement], var_name: &str, expr: Expression) -> Expression {
+     if let Some(variable_replacement) = stmts.iter().find_map(|a| match a {
+            Statement::VariableAssignment {name, expression} if name == var_name => {
+                Some(expression)
+            }
+            _ => None
+        }) {
+            let v = variable_replacement.clone();
+            *v
+        } else {
+            Expression::Var(var_name.to_owned())
+        }
+}
+fn extended_statements(a: &[Statement], b: &[Statement]) -> Vec<Statement> {
+    let mut v = vec![];
+    v.extend(a.iter().cloned().chain(b.iter().cloned()));
+    v
+}
 
 #[cfg(test)]
 mod tests {
     use crate::to_json_logic;
 
+    #[test]
+    fn test_statements() {
+        let stuff = r#"
+        /* This is a comment */
+        let two_dose_vaccines = [
+            "a",
+            "b"
+        ];
+        if (payload.v.0.mp in two_dose_vaccines) {
+            true
+        } else {
+            false
+        }
+        "#;
+        let expression = super::arithmetic::expression(stuff).unwrap();
+        println!("{}", expression.to_json_logic());
+    }
     #[test]
     fn or_test() {
         let expression = super::arithmetic::expression("true or false").unwrap();
@@ -574,10 +625,10 @@ mod tests {
     }
     #[test]
     fn test_comment() {
-        let _ = to_json_logic! {{
-             /* This is a comment */
+        let _ = to_json_logic! {{/* This is a comment */
+            /* This is a comment */
             if (a < b) {
-                /**/
+                /*comment*/
                 if (c < b) {
                     /*
                         This is a multiline comment

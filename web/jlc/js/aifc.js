@@ -15,7 +15,7 @@ monaco.languages.setMonarchTokensProvider('aifc', {
     tokenizer: {
         root: [
             [/\/\*[^]*\*\//sm, "comment"],
-            [/\b(if|else|switch|as|null|undefined)\b/, "keyword"],
+            [/\b(if|else|switch|as|null|undefined|let)\b/, "keyword"],
             [/\:\:(\w+)/, "function"],
             [/_\s+=>/, "default-case"],
             [/=>/, "arrow"],

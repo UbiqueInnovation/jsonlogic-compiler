@@ -8,6 +8,15 @@ pub use parser::arithmetic;
 // https://opensource.org/licenses/MIT
 
 #[derive(Clone, PartialEq, Debug)]
+pub enum Statement {
+    VariableAssignment {
+        name: String,
+        expression: Box<Expression>,
+    },
+    Comment(String)
+}
+
+#[derive(Clone, PartialEq, Debug)]
 pub enum Expression {
     Conditional {
         condition: Box<Expression>,
@@ -25,7 +34,7 @@ pub enum Expression {
     ArrayOperation(Box<Expression>, String, Box<Expression>),
     ArrayOperationWithArguments(Box<Expression>, String, Box<Expression>, Vec<Expression>),
     Function(String, Vec<Expression>),
-    Comment(String)
+    Comment(String),
 }
 
 impl Expression {
@@ -83,9 +92,7 @@ impl Expression {
                 for arg in args {
                     the_args.push(arg.to_json_logic());
                 }
-                json!({
-                    func_name: the_args
-                })
+                json!({ func_name: the_args })
             }
             Expression::ArrayOperation(var, func_name, inner_expr) => {
                 let array = var.to_json_logic();
@@ -98,7 +105,7 @@ impl Expression {
                     ]
                 })
             }
-             Expression::ArrayOperationWithArguments(var, func_name, inner_expr, args) => {
+            Expression::ArrayOperationWithArguments(var, func_name, inner_expr, args) => {
                 let array = var.to_json_logic();
                 let inner_expr = inner_expr.to_json_logic();
                 let mut operands = vec![];
@@ -108,9 +115,7 @@ impl Expression {
                     let arg = arg.to_json_logic();
                     operands.push(arg);
                 }
-                json!({
-                    func_name : operands
-                })
+                json!({ func_name: operands })
             }
             Expression::TimeInterval(a, b) => {
                 let inner = a.to_json_logic();
@@ -121,9 +126,7 @@ impl Expression {
                     ]
                 })
             }
-            _ => {
-                serde_json::Value::Null
-            }
+            _ => serde_json::Value::Null,
         }
     }
 }
@@ -202,10 +205,10 @@ impl Comparison {
             | Comparison::ExactEqual(a, b)
             | Comparison::NotEqual(a, b)
             | Comparison::NotExactEqual(a, b)
-            | Comparison::After(a,b)
-            | Comparison::NotAfter(a,b)
-            | Comparison::Before(a,b)
-            | Comparison::NotBefore(a,b) => {
+            | Comparison::After(a, b)
+            | Comparison::NotAfter(a, b)
+            | Comparison::Before(a, b)
+            | Comparison::NotBefore(a, b) => {
                 let a = a.to_json_logic();
                 let b = b.to_json_logic();
                 let token = self.to_string();

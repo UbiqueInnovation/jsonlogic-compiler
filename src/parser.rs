@@ -375,18 +375,18 @@ pub grammar arithmetic() for str {
         }
 
     }
-    rule variable_assignment() -> Statement = _ "let" _ v:var() _ "=" _ e:expression() _ ";" _ {
+    rule variable_assignment(stmts: &[Statement]) -> Statement = _ "let" _ v:var() _ "=" _ e:expression_with_satements(stmts) _ ";" _ {
         Statement::VariableAssignment{name: v.to_string(), expression: Box::new(e)}
     }
-    rule statement() -> Statement = _ c:(comment() / variable_assignment()) _ {
+    rule statement(stmts: &[Statement]) -> Statement = _ c:(comment() / variable_assignment(stmts)) _ {
         c
     }
 
-    rule expression_with_satements(old: &[Statement]) -> Expression = stmts:(statement())* e:(booleanCast((&extended_statements(&stmts, old))) / (switch((&extended_statements(&stmts, old))) / expected!("Switch")) / (conditionalWithElse((&(extended_statements(&stmts, old))))/ conditional((&(extended_statements(&stmts, old))))/ expected!("Conditional"))  / ( timeOperation((&extended_statements(&stmts, old))) / operation((&extended_statements(&stmts, old)))   /expected!("Binary operator"))/ (arrayOperationWithArguments((&extended_statements(&stmts, old))) / arrayOperation((&extended_statements(&stmts, old))) / array((&extended_statements(&stmts, old)))/expected!("Array expression"))  / (unary((&extended_statements(&stmts, old))) / function((&extended_statements(&stmts, old)))/expected!("Function"))) {
+    rule expression_with_satements(old: &[Statement]) -> Expression = stmts:(statement(old))* e:(booleanCast((&extended_statements(&stmts, old))) / (switch((&extended_statements(&stmts, old))) / expected!("Switch")) / (conditionalWithElse((&(extended_statements(&stmts, old))))/ conditional((&(extended_statements(&stmts, old))))/ expected!("Conditional"))  / ( timeOperation((&extended_statements(&stmts, old))) / operation((&extended_statements(&stmts, old)))   /expected!("Binary operator"))/ (arrayOperationWithArguments((&extended_statements(&stmts, old))) / arrayOperation((&extended_statements(&stmts, old))) / array((&extended_statements(&stmts, old)))/expected!("Array expression"))  / (unary((&extended_statements(&stmts, old))) / function((&extended_statements(&stmts, old)))/expected!("Function"))) {
         e
     }
 
-    pub rule expression() -> Expression = stmts:(statement())* e:(booleanCast((&stmts)) / (switch((&stmts)) / expected!("Switch")) / (conditionalWithElse((&(stmts)))/ conditional((&(stmts)))/ expected!("Conditional"))  / ( timeOperation((&stmts)) / operation((&stmts))   /expected!("Binary operator"))/ (arrayOperationWithArguments((&stmts)) / arrayOperation((&stmts)) / array((&stmts))/expected!("Array expression"))  / (unary((&stmts)) / function((&stmts))/expected!("Function"))) {
+    pub rule expression() -> Expression = stmts:(statement((&[])))* e:(booleanCast((&stmts)) / (switch((&stmts)) / expected!("Switch")) / (conditionalWithElse((&(stmts)))/ conditional((&(stmts)))/ expected!("Conditional"))  / ( timeOperation((&stmts)) / operation((&stmts))   /expected!("Binary operator"))/ (arrayOperationWithArguments((&stmts)) / arrayOperation((&stmts)) / array((&stmts))/expected!("Array expression"))  / (unary((&stmts)) / function((&stmts))/expected!("Function"))) {
         e
     }
 }}
@@ -426,6 +426,20 @@ mod tests {
         } else {
             false
         }
+        "#;
+        let expression = super::arithmetic::expression(stuff).unwrap();
+        println!("{}", expression.to_json_logic());
+    }
+    #[test]
+    fn test_assignment_replacement() {
+        let stuff = r#"
+            let a = if( 1 < 2 ) { "test" }  else { "other" };
+            if (b === "test") {
+                let c = a;
+                c
+            } else {
+                "nope"
+            }
         "#;
         let expression = super::arithmetic::expression(stuff).unwrap();
         println!("{}", expression.to_json_logic());

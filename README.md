@@ -18,7 +18,7 @@ The parser uses [peg](https://github.com/kevinmehall/rust-peg) to generate an in
 
 To provide easy access to the language, we built a static website, using the rust parser as a web assembly module. The website should run on most modern browsers. It has built-in the monaco editor backend with a basic language definition for aifc.
 
-On the web backend, the resulting rules can also directly be checked with actually JSON context input.
+On the web backend, the resulting rules can also be verified by evaluating them on a an actual JSON data context.
 
 There is a [web-backend](http://jsonlogic-compiler.s3-website.eu-central-1.amazonaws.com/) available for testing.
 
@@ -166,7 +166,7 @@ switch(medical_product) {
 
 ### Logical operators 
 
-There are the following logic operators supported:
+The following logic operators are supported:
 
 - and / &&
 - or / ||
@@ -246,7 +246,7 @@ not b
 
 ### Time-Comparison
 
-When using comparison of time events the following operators _must_ be used to comply to `CertLogic`:
+When using comparison of time events the following operators _must_ be used to comply with `CertLogic`:
 
 - is before
 - is not before
@@ -306,7 +306,7 @@ a as DateTime + 1#day
 ```
 </details>
 
-Further, strings conforming to a date or date time are considered `date variables` automatically:
+Further, strings conforming to a date or date time are automatically considered as `date variables`:
 
 ```js
 "2021-01-01" + 1#day
@@ -352,7 +352,7 @@ now()
 
 ### Boolean casts
 
-As `CertLogic` only provides a subset of `truthy/falsy` values there exists the `Boolean` cast to ensure something is interpreted as a proper boolean.
+As `CertLogic` only provides a subset of `truthy/falsy` values we added the `Boolean` cast to ensure something is interpreted as a boolean.
 
 ```js
 a as Boolean
@@ -962,13 +962,14 @@ There are only multiline comments supported, using the following syntax
 /* This is a single line */
 
 /*
-    This is a multiple line
+    This is a multi line... 
+    ...comment
 */
 ```
 
 ### Variable Assignments
 
-Currently, basic variable statements are supported. There is no compile time checked if a name is defined multiple times. Further, a declared variable can only be used in the proceeding blocks.
+Currently, basic variable statements are supported. There is no compile time check if a name is defined multiple times. Further, a declared variable can only be used in the proceeding blocks.
 
 ```js
 let a = b;

@@ -4,7 +4,7 @@ This repository provides means of compiling a simple "javascript-like" language 
 
 ## AifC (AST is for Computers)
 
-AifC is an acronym explaining the pain of json-logic. Json-logic itself is nice to use, since one can easily evaluate certain logic given a context in a secure sandbox. Though the syntax itself is more similiar to something like an AST. Hence, the layer above json-logic, providing a syntax more like modern programming languages.
+AifC /ɪˈfsiː/ [eff-see] is an acronym explaining the pain of json-logic. Json-logic itself is nice to use, since one can easily evaluate certain logic given a context in a secure sandbox. Though the syntax itself is more similiar to something like an AST. Hence, the layer above json-logic, providing a syntax more like modern programming languages.
 
 ## The compiler
 

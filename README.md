@@ -172,6 +172,77 @@ There are the following logic operators supported:
 - or / ||
 - not / !
 
+```js
+a and b
+```
+
+<details>
+<summary>JSON-logic</summary>
+
+```json
+{
+  "and": [
+    {
+      "var": "a"
+    },
+    {
+      "var": "b"
+    }
+  ]
+}
+```
+</details>
+
+```js
+a or b
+```
+
+<details>
+<summary>JSON-logic</summary>
+
+```json
+{
+  "!": [
+    {
+      "and": [
+        {
+          "!": [
+            {
+              "var": "a"
+            }
+          ]
+        },
+        {
+          "!": [
+            {
+              "var": "b"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+</details>
+
+```js
+not b
+```
+
+<details>
+<summary>JSON-logic</summary>
+
+```json
+{
+  "!": [
+    {
+      "var": "b"
+    }
+  ]
+}
+```
+</details>
 
 ### Time-Comparison
 
@@ -182,6 +253,26 @@ When using comparison of time events the following operators _must_ be used to c
 - is after
 - is not after
 
+```js
+a as DateTime is before b as DateTime
+```
+
+<details>
+<summary>JSON-logic</summary>
+
+```json
+{
+  "before": [
+    {
+      "var": "a"
+    },
+    {
+      "var": "b"
+    }
+  ]
+}
+```
+</details>
 
 ### Time-Literals
 

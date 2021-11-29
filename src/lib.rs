@@ -25,7 +25,7 @@ pub enum Expression {
     },
     Not(Box<Expression>),
     Var(String),
-    VarWithDefault(String, Value),
+    VarWithDefault(String, Box<Expression>),
     Operation(Operation),
     Comparison(Comparison),
     Atomic(Value),
@@ -70,7 +70,7 @@ impl Expression {
                 json!({ "var": v })
             }
             Expression::VarWithDefault(v, fall_back) => {
-                let value = fall_back.to_serde_json();
+                let value = fall_back.to_json_logic();
                 json!({"var" : [v, value] })
             }
             Expression::Operation(a) => a.to_json_logic(),

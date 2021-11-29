@@ -109,14 +109,8 @@ pub grammar arithmetic() for str {
     }
 
     rule operation(stmts: &[Statement]) -> Expression = precedence!{
-        v:var() null_coercion() f:float() {
-            Expression::VarWithDefault(v.to_owned(),Value::Float(f.parse::<f64>().unwrap()))
-        }
-        v:var() null_coercion() l:number() {
-             Expression::VarWithDefault(v.to_owned(),Value::Int(l.parse::<i128>().unwrap()))
-        }
-        v:var() null_coercion() "\"" s:string()"\"" {
-             Expression::VarWithDefault(v.to_owned(),Value::String(s.to_owned()))
+        v:var() null_coercion() e:expression() {
+            Expression::VarWithDefault(v.to_owned(),Box::new(e))
         }
         --
         x:(@) or() y:@ {
@@ -412,6 +406,18 @@ fn extended_statements(a: &[Statement], b: &[Statement]) -> Vec<Statement> {
 #[cfg(test)]
 mod tests {
     use crate::to_json_logic;
+
+    #[test]
+    fn test_null_coercion() {
+        let logic = "a ?? true";
+        let logic = super::arithmetic::expression(logic).unwrap();
+        let json_logic = logic.to_json_logic();
+        let res = jsonlogic::apply(&json_logic, &serde_json::Value::Null)
+            .unwrap()
+            .as_bool()
+            .unwrap();
+        assert!(res);
+    }
 
     #[test]
     fn test_statements() {

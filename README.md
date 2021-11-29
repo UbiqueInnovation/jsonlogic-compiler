@@ -280,8 +280,6 @@ Suffixing a integer literal with `#<timeunit>` will automatically desugar to the
 
 > Note that all the time operations are not well defined on weather what a month is. The web-backend uses `chrono` as the time library and hence all operations are lowered to the corresponding `chrono` functions.
 
-- second/seconds
-- minute/minutes
 - hour/hours
 - day/days
 - month/months

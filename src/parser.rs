@@ -17,7 +17,7 @@ pub grammar arithmetic() for str {
     rule time() -> &'input str = $(['0'..='9']*<2>":"['0'..='9']*<2>(":"['0'..='9']*<2>("."['0'..='9']+)?)?)
     rule offset() -> &'input str = $((("+"/"-")['0'..='9']*<2>(":"['0'..='9']*<2>)?)/"Z")
     rule dateTime() -> &'input str = $(date()("T" time()(offset())?)?)
-    rule time_interval() -> &'input str = quiet!{$(_ "#" _ ("years" / "year" / "months" / "month" / "days" / "day" / "hours" / "hour" /"minutes"/ "minute" / "seconds"/ "second"))} / expected!("Time interval (year,month,hour,minut,second)")
+    rule time_interval() -> &'input str = quiet!{$(_ "#" _ ("years" / "year" / "months" / "month" / "days" / "day" / "hours" / "hour"))} / expected!("Time interval (year,month,hour).")
     rule bool() -> &'input str = quiet!{$("true" / "false")} /expected!("Boolean")
     rule _ = quiet!{[' ' | '\n']*}
     rule plus() = _ ("+"/ "plus")  _

@@ -2,6 +2,7 @@
 //
 // This software is released under the MIT License.
 // https://opensource.org/licenses/MIT
+#![allow(clippy::redundant_closure_call)]
 
 use super::*;
 use peg::parser;
@@ -79,14 +80,14 @@ pub grammar arithmetic() for str {
         x:(@) and() y:@ { Expression::Operation(Operation::And(Box::new(x), Box::new(y))) }
         --
         _ v:var() l:time_interval() _ {
-            let l = l.trim().strip_prefix("#").unwrap();
-            let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
+            let l = l.trim().strip_prefix('#').unwrap();
+            let l = if let Some(l) = l.strip_suffix('s') { l } else { l };
             let ex =  replace_variable(stmts, v, Expression::Var(v.to_owned()));
             Expression::TimeInterval(Box::new(ex), l.trim().to_owned())
         }
         _ v:number() l:time_interval() {
-            let l = l.trim().strip_prefix("#").unwrap();
-            let l = if let Some(l) = l.strip_suffix("s") { l } else { l };
+            let l = l.trim().strip_prefix('#').unwrap();
+            let l = if let Some(l) = l.strip_suffix('s') { l } else { l };
             Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(v.parse::<i128>().unwrap()))), l.trim().to_owned())
         }
         --
@@ -394,7 +395,7 @@ fn replace_variable(stmts: &[Statement], var_name: &str, expr: Expression) -> Ex
             let v = variable_replacement.clone();
             *v
         } else {
-            Expression::Var(var_name.to_owned())
+            expr
         }
 }
 fn extended_statements(a: &[Statement], b: &[Statement]) -> Vec<Statement> {

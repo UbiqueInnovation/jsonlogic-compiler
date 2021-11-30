@@ -95,7 +95,7 @@
 			"patterns": [
 				{
 					"name" : "entity.name.type",
-					"match": "\\b(DateTime|Boolean)\\b"
+					"match": "\\b(DateTime|Boolean|String)\\b"
 				}
 			]
 		},

@@ -23,7 +23,7 @@ monaco.languages.setMonarchTokensProvider('aifc', {
             [/(!=|==|or)/, "not-supported-operator"],
             [/\d+\#(years|year|months|month|weeks|week|days|day|hours|hour|minutes|minute|seconds|second)/, "timespan"],
             [/"\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(([+-]\d{2}(:\d{2})?)|Z)?)?"/, "date-literal"],
-            [/\b(DateTime|Boolean)\b/, "type"],
+            [/\b(DateTime|Boolean|String)\b/, "type"],
             [/\b(this|accumulator|current)\b/, "context-keywords"],
             [/\b([A-z]+[A-z0-9_]*)(\.[A-z0-9]+[A-z0-9_]*)*\b/, "variable"],
         ]

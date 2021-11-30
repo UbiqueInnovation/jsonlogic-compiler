@@ -307,7 +307,7 @@ a as DateTime + 1#day
 Further, strings conforming to a date or date time are automatically considered as `date variables`:
 
 ```js
-"2021-01-01" + 1#day
+"2021-01-01"
 ```
 
 <details>
@@ -316,13 +316,27 @@ Further, strings conforming to a date or date time are automatically considered 
 ```js
 {
   "plusTime": [
-    {
-      "plusTime": [
-        "2021-01-01",
-        0,
-        "day"
-      ]
-    },
+    "2021-01-01",
+    0,
+    "day"
+  ]
+}
+```
+</details>
+
+To be able to use the date-string in a time-operation, a cast to string is needed, as CertLogic can only operate on strings:
+```js
+("2020-01-01" as String) + 1#day
+```
+
+
+<details>
+<summary>JSON-logic</summary>
+
+```js
+{
+  "plusTime": [
+    "2021-01-01",
     1,
     "day"
   ]

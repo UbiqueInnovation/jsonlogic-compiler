@@ -43,6 +43,7 @@ pub grammar arithmetic() for str {
     rule now() = _ quiet!{"now" _ "(" _ ")"} _
     rule min() = _ "min" _
     rule max() = _ "max" _
+    rule dateString() = _ "\"" d:dateTime() "\""
     rule comment() -> Statement = _ "/*" _ comment:($((!("*/")['\0'..='\x7f'])*)) _ "*/" _ {
         Statement::Comment(comment.to_string())
     }
@@ -91,10 +92,14 @@ pub grammar arithmetic() for str {
             Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(v.parse::<i128>().unwrap()))), l.trim().to_owned())
         }
         --
+         _ "\"" d:dateTime() "\"" _ "as String" _ {
+             Expression::Atomic(Value::String(d.to_string()))
+         }
+        --
         _ "\"" d:dateTime() "\"" {
-           let date = Expression::Atomic(Value::String(d.to_owned()));
-           let unit = Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(0))), "day".to_string());
-           Expression::Operation(Operation::PlusTime(Box::new(date), Box::new(unit)))
+            let date = Expression::Atomic(Value::String(d.to_owned()));
+            let unit = Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(0))), "day".to_string());
+            Expression::Operation(Operation::PlusTime(Box::new(date), Box::new(unit)))
         }
         --
         _ v:var() _ "as DateTime" _ {

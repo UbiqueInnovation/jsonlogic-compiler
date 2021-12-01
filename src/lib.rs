@@ -108,9 +108,8 @@ impl Expression {
             Expression::ArrayOperationWithArguments(var, func_name, inner_expr, args) => {
                 let array = var.to_json_logic();
                 let inner_expr = inner_expr.to_json_logic();
-                let mut operands = vec![];
-                operands.push(array);
-                operands.push(inner_expr);
+                let mut operands = vec![array, inner_expr];
+               
                 for arg in args {
                     let arg = arg.to_json_logic();
                     operands.push(arg);
@@ -132,7 +131,7 @@ impl Expression {
 }
 impl std::fmt::Display for Expression {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let exp = serde_json::to_string_pretty(&self.to_json_logic()).unwrap_or("".to_string());
+        let exp = serde_json::to_string_pretty(&self.to_json_logic()).unwrap_or_else(|_| "".to_string());
         let _ = fmt.write_str(&exp);
         Ok(())
     }

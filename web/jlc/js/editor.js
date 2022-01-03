@@ -6,6 +6,10 @@
 import * as monaco from 'monaco-editor';
 import "./aifc";
 
+import {
+    Buffer
+} from 'buffer';
+
 self.MonacoEnvironment = {
     getWorkerUrl: function (moduleId, label) {
         if (label === 'json') {
@@ -51,13 +55,15 @@ logic.addAction({
     // @param editor The editor instance is passed in as a convenience
     run: function (ed) {
         let files = ed.getModel().getValue();
-        const jsonBlob = new Blob([files], { type: 'text/javascript' });
-         const elem = window.document.createElement('a');
-         elem.href = window.URL.createObjectURL(jsonBlob);
-         elem.download = "nationalRules.js";
-         document.body.appendChild(elem);
-         elem.click();
-         document.body.removeChild(elem);
+        const jsonBlob = new Blob([files], {
+            type: 'text/javascript'
+        });
+        const elem = window.document.createElement('a');
+        elem.href = window.URL.createObjectURL(jsonBlob);
+        elem.download = "nationalRules.js";
+        document.body.appendChild(elem);
+        elem.click();
+        document.body.removeChild(elem);
     }
 });
 
@@ -161,6 +167,21 @@ var resultEditor = monaco.editor.create(document.getElementById("result"), {
     readOnly: true,
     automaticLayout: true
 });
+var fragmentPart = window.location.hash;
+if (fragmentPart != undefined && fragmentPart !== "") {
+    var fragment = JSON.parse(Buffer.from(window.location.hash, 'base64'));
+
+    if (fragment != undefined) {
+        json.getModel().setValue(fragment.json);
+        dataEditor.getModel().setValue(fragment.data);
+        if (fragment.logic != undefined) {
+            logic.getModel().setValue(fragment.logic);
+            compileLogic();
+        }
+        applyLogic();
+    }
+}
+
 
 var otherBinding = logic.onDidChangeModelContent((e) => {
     compileLogic();
@@ -174,7 +195,7 @@ var blubBinding = dataEditor.onDidChangeModelContent((e) => {
     try {
         window.dataModel = JSON.parse(dataEditor.getModel().getValue());
     } catch (ex) {
-        
+
     }
 });
 
@@ -192,3 +213,26 @@ function applyLogic() {
     let result = window.apply_logic(compiledLogic, data);
     resultEditor.getModel().setValue(result)
 }
+
+function share() {
+    var includeLogic = document.querySelector("input[name='withLogic']").checked;
+    var model = undefined;
+    if (includeLogic) {
+        model = {
+            "logic": logic.getModel().getValue(),
+            "json": json.getModel().getValue(),
+            "data": dataEditor.getModel().getValue()
+        }
+    } else {
+        model = {
+            "json": json.getModel().getValue(),
+            "data": dataEditor.getModel().getValue()
+        }
+    }
+
+    var encoded = Buffer.from(JSON.stringify(model)).toString("base64");
+    var url = window.location.href+ "#" + encoded;
+    document.getElementById("shareUrl").textContent = url;
+}
+
+document.getElementById("shareButton").onclick = share;

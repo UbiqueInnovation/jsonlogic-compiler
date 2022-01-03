@@ -12,11 +12,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     @font-face {
-    font-family: "codicon";
-    src:
-    url(https://raw.githubusercontent.com/microsoft/vscode-codicons/482a516fd42a0a0262725638300ba0fe0c106bbf/dist/codicon.ttf)
-    format("truetype");
+      font-family: "codicon";
+      src:
+        url(https://raw.githubusercontent.com/microsoft/vscode-codicons/482a516fd42a0a0262725638300ba0fe0c106bbf/dist/codicon.ttf) 
+        format("truetype");
     }
+
     body {
       padding: 20px;
     }
@@ -63,6 +64,17 @@
   <h1> Logic to JsonLogic</h1>
   <p>Compile AifC (AST is for Computers) to json_logic
   </p>
+  <div>
+    <button id="shareButton">Share</button>
+    <div style="overflow: scroll;">
+      <p id="shareUrl"> NONE </p>
+    </div>
+    <div>
+      <p>Include Logic</p>
+      <input type="checkbox" name="withLogic">
+    </div>
+  </div>
+
 
   <div class="pure-g">
     <div class="pure-u-1 pure-u-md-1-2">
@@ -73,13 +85,13 @@
       <h2>Compiled JsonLogic</h2>
       <div id="json" style="height: 500px; border: blue solid 1px;"></div>
     </div>
-   
+
   </div>
   <div class="pure-g">
-     <div class="pure-u-1 pure-u-md-1-2">
-       <h2>Data</h2>
-       <div id="data" style="height: 500px; border: blue solid 1px;"></div>
-     </div>
+    <div class="pure-u-1 pure-u-md-1-2">
+      <h2>Data</h2>
+      <div id="data" style="height: 500px; border: blue solid 1px;"></div>
+    </div>
     <div class="pure-u-1 pure-u-md-1-2">
       <h2>Result</h2>
       <div id="result" style="height: 500px; border: blue solid 1px;"></div>

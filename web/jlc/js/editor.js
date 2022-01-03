@@ -235,22 +235,19 @@ function share() {
     }
 
     var encoded = Buffer.from(JSON.stringify(model)).toString("base64");
-    var url = window.location.href + "#" + encoded;
-    // document.getElementById("shareUrl").textContent = url;
-    var png = window.to_qrcode(url);
+    var png = window.to_qrcode(encoded);
     document.getElementById("shareQrCode").src = `data:image/png;base64, ${png}`;
 }
 
 
 document.getElementById("pasteField").addEventListener("paste", function (thePasteEvent) {
+
     retrieveImageFromClipboardAsBase64(thePasteEvent, function (imageUrl) {
         var res = imageUrl.replace("data:image/png;base64,", "").trim();
         console.log(res);
-        var fragment = window.from_qrcode(res);
+        var data = window.from_qrcode(res);
 
-        window.location.href = fragment;
-
-        var fragment = JSON.parse(Buffer.from(window.location.hash, 'base64'));
+        var fragment = JSON.parse(Buffer.from(data, 'base64'));
 
         if (fragment != undefined) {
 
@@ -264,44 +261,12 @@ document.getElementById("pasteField").addEventListener("paste", function (thePas
             }
             applyLogic();
         }
+        document.getElementById("pasteField").value = "";
     });
 }, false);
 
 document.getElementById("shareButton").onclick = share;
 
-
-/**
- * This handler retrieves the images from the clipboard as a blob and returns it in a callback.
- * 
- * @param pasteEvent 
- * @param callback 
- */
-function retrieveImageFromClipboardAsBlob(pasteEvent, callback) {
-    if (pasteEvent.clipboardData == false) {
-        if (typeof (callback) == "function") {
-            callback(undefined);
-        }
-    };
-
-    var items = pasteEvent.clipboardData.items;
-
-    if (items == undefined) {
-        if (typeof (callback) == "function") {
-            callback(undefined);
-        }
-    };
-
-    for (var i = 0; i < items.length; i++) {
-        // Skip content if not image
-        if (items[i].type.indexOf("image") == -1) continue;
-        // Retrieve image on clipboard as blob
-        var blob = items[i].getAsFile();
-
-        if (typeof (callback) == "function") {
-            callback(blob);
-        }
-    }
-}
 
 
 /**
@@ -324,9 +289,22 @@ function retrieveImageFromClipboardAsBase64(pasteEvent, callback, imageFormat) {
             callback(undefined);
         }
     };
-
+    let regs = /<img.*src=\"data:image\/png;base64,(?<code>[A-Za-z0-9\/+=]+)\".*>/;
     for (var i = 0; i < items.length; i++) {
         // Skip content if not image
+        console.log(items[i]);
+        if (items[i].kind === "string") {
+            console.log("blub");
+            items[i].getAsString(function (s) {
+                if (regs.test(s)){
+                    let m = s.match(regs);
+                    callback(m.groups["code"]);
+                } else {
+                    callback(s);
+                }
+            });
+            return;
+        }
         if (items[i].type.indexOf("image") == -1) continue;
         // Retrieve image on clipboard as blob
         var blob = items[i].getAsFile();

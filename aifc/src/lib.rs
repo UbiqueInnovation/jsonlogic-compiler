@@ -1,9 +1,9 @@
-use std::{error::Error, fmt::Display};
+use std::{error::Error, fmt::Display, sync::{Arc, Mutex}};
 
 use colorize::AnsiColor;
 
 pub fn compile_logic(input: &str, minified: bool) -> Result<String, AifcCompileError> {
-    let json_logic = match jlc::arithmetic::expression(input) {
+    let json_logic = match jlc::arithmetic::expression(input, &Arc::new(Mutex::new(vec![]))) {
         Ok(logic) => logic,
         Err(e) => {
             let location = e.location;

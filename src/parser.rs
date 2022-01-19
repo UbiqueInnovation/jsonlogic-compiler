@@ -391,17 +391,15 @@ pub grammar arithmetic() for str {
     }
 }}
 fn replace_variable(stmts: &[Statement], var_name: &str, expr: Expression) -> Expression {
-     if let Some(variable_replacement) = stmts.iter().find_map(|a| match a {
-            Statement::VariableAssignment {name, expression} if name == var_name => {
-                Some(expression)
-            }
-            _ => None
-        }) {
-            let v = variable_replacement.clone();
-            *v
-        } else {
-            expr
-        }
+    if let Some(variable_replacement) = stmts.iter().find_map(|a| match a {
+        Statement::VariableAssignment { name, expression } if name == var_name => Some(expression),
+        _ => None,
+    }) {
+        let v = variable_replacement.clone();
+        *v
+    } else {
+        expr
+    }
 }
 fn extended_statements(a: &[Statement], b: &[Statement]) -> Vec<Statement> {
     let mut v = vec![];
@@ -411,7 +409,9 @@ fn extended_statements(a: &[Statement], b: &[Statement]) -> Vec<Statement> {
 
 #[cfg(test)]
 mod tests {
-    use crate::to_json_logic;
+    use serde_json::{json, Value};
+
+    use crate::{to_json_logic, Expression};
 
     #[test]
     fn test_null_coercion() {
@@ -439,8 +439,39 @@ mod tests {
             false
         }
         "#;
-        let expression = super::arithmetic::expression(stuff).unwrap();
-        println!("{}", expression.to_json_logic());
+        let expression: Expression = super::arithmetic::expression(stuff).unwrap();
+        let mp_a = json!({
+            "payload" : {
+                "v" : [
+                    {
+                        "mp": "a"
+                    }
+                ]
+            }
+        });
+        let mp_b = json!({
+            "payload" : {
+                "v" : [
+                    {
+                        "mp": "b"
+                    }
+                ]
+            }
+        });
+        let mp_c = json!({
+            "payload" : {
+                "v" : [
+                    {
+                        "mp": "c"
+                    }
+                ]
+            }
+        });
+        let logic = expression.to_json_logic();
+        assert!(jsonlogic::apply(&logic, &mp_a).unwrap().as_bool().unwrap());
+        assert!(jsonlogic::apply(&logic, &mp_b).unwrap().as_bool().unwrap());
+        // this should be false
+        assert!(!jsonlogic::apply(&logic, &mp_c).unwrap().as_bool().unwrap());
     }
     #[test]
     fn test_assignment_replacement() {
@@ -453,8 +484,14 @@ mod tests {
                 "nope"
             }
         "#;
-        let expression = super::arithmetic::expression(stuff).unwrap();
-        println!("{}", expression.to_json_logic());
+        let expression: Expression = super::arithmetic::expression(stuff).unwrap();
+        let logic = expression.to_json_logic();
+        let test_data = json!({"b" : "test"});
+        let other_data = json!({"b": "other"});
+        let result = jsonlogic::apply(&logic, &test_data).unwrap();
+        assert_eq!("test", result.as_str().unwrap());
+        let result = jsonlogic::apply(&logic, &other_data).unwrap();
+        assert_eq!("nope", result.as_str().unwrap());
     }
     #[test]
     fn or_test() {
@@ -493,8 +530,15 @@ mod tests {
     }
     #[test]
     fn test() {
-        let expression = super::arithmetic::expression("now() + 3#years").unwrap();
-        println!("{}", expression.to_json_logic());
+        let expression: Expression = super::arithmetic::expression("now() + 3#days").unwrap();
+        let validation_clock = json!({
+            "external" : {
+                "validationClock" : "2022-01-01"
+            }
+        });
+        let logic = expression.to_json_logic();
+        let result = jsonlogic::apply(&logic, &validation_clock).unwrap();
+        assert_eq!("2022-01-04T00:00:00+00:00", result.as_str().unwrap());
     }
     #[test]
     fn array_test() {
@@ -508,19 +552,30 @@ mod tests {
     fn array_expr_test() {
         let array_expression =
             super::arithmetic::expression("[1,2,3,4,5]::filter { this % 2 == 0 }").unwrap();
-        println!("{}", array_expression.to_json_logic());
+        let logic = array_expression.to_json_logic();
+        let result = jsonlogic::apply(&logic, &serde_json::Value::Null).unwrap();
+        for v in result.as_array().unwrap() {
+            let i = v.as_i64().unwrap();
+            assert!(i % 2 == 0);
+        }
     }
 
     #[test]
     fn test_in() {
-        let in_expression = super::arithmetic::expression("a in [1,2,3,4]").unwrap();
-        println!("{}", in_expression.to_json_logic());
+        let in_expression: Expression = super::arithmetic::expression("a in [1,2,3,4]").unwrap();
+        let val_1 = json!({"a": 1});
+        let logic = in_expression.to_json_logic();
+        let result = jsonlogic::apply(&logic, &val_1).unwrap();
+        assert!(result.as_bool().unwrap());
+        let val_2 = json!({"a": 5});
+        let result = jsonlogic::apply(&logic, &val_2).unwrap();
+        assert!(!result.as_bool().unwrap());
     }
     #[test]
     fn test_switch() {
-        let switch_expression = super::arithmetic::expression(
+        let switch_expression : Expression = super::arithmetic::expression(
             r#"
-        switch(a) {
+        switch(a.test) {
             ["my", "and", "case"] : if a.mp === "test" => {
                 e
             }
@@ -545,7 +600,36 @@ mod tests {
         "#,
         )
         .unwrap();
-        println!("{}", switch_expression.to_json_logic());
+        let logic = switch_expression.to_json_logic();
+        let test_case = json!({
+            "a" : {
+                "test" : "case",
+                "mp" : "test"
+            },
+            "e" : true
+        });
+         let test_third = json!({
+            "a" : {
+                "test" : "third",
+            }, 
+            "d" : true
+        });
+         let test_sixth = json!({
+            "a" : {
+                "test" : "sixth",
+            },
+            "e" : true
+        });
+         let test_seventh = json!({
+            "a" : {
+                "test" : "seventh",
+            },
+        });
+        assert!(jsonlogic::apply(&logic, &test_case).unwrap().as_bool().unwrap());
+        assert!(jsonlogic::apply(&logic, &test_third).unwrap().as_bool().unwrap());
+        assert!(jsonlogic::apply(&logic, &test_sixth).unwrap().as_bool().unwrap());
+        let undefined =jsonlogic::apply(&logic, &test_seventh).unwrap();
+       assert_eq!(Value::Null, undefined);
     }
 
     #[test]
@@ -603,51 +687,32 @@ mod tests {
     #[test]
     fn test_time() {
         let time =
-            super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00""#)
-                .unwrap();
-        println!("{}", time.to_json_logic());
-        let time =
             super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00:00""#)
                 .unwrap();
-        println!("{}", time.to_json_logic());
+        assert!(!jsonlogic::apply(&time.to_json_logic(), &Value::Null).unwrap().as_bool().unwrap());
         let time = super::arithmetic::expression(
             r#""2020-01-01" is not before "2020-02-02T00:00:00.000""#,
         )
         .unwrap();
-        println!("{}", time.to_json_logic());
-        let time =
-            super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00Z""#)
-                .unwrap();
-        println!("{}", time.to_json_logic());
+        assert!(!jsonlogic::apply(&time.to_json_logic(), &Value::Null).unwrap().as_bool().unwrap());
+       
         let time =
             super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00:00Z""#)
                 .unwrap();
-        println!("{}", time.to_json_logic());
-        let time =
-            super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00+03""#)
-                .unwrap();
-        println!("{}", time.to_json_logic());
-        let time =
-            super::arithmetic::expression(r#""2020-01-01" is not before "2020-02-02T00:00+03:00""#)
-                .unwrap();
-        println!("{}", time.to_json_logic());
-        let time = super::arithmetic::expression(
-            r#""2020-01-01" is not before "2020-02-02T00:00:00.999+03""#,
-        )
-        .unwrap();
-        println!("{}", time.to_json_logic());
+         assert!(!jsonlogic::apply(&time.to_json_logic(), &Value::Null).unwrap().as_bool().unwrap());
+       
         let time = super::arithmetic::expression(
             r#""2020-01-01" is not before "2020-02-02T00:00:00.999+03:00""#,
         )
         .unwrap();
-        println!("{}", time.to_json_logic());
+         assert!(!jsonlogic::apply(&time.to_json_logic(), &Value::Null).unwrap().as_bool().unwrap());
         let time = super::arithmetic::expression(
             r#"(a as DateTime) is not before "2020-02-02T00:00:00.999+03:00""#,
         )
         .unwrap();
-        println!("{}", time.to_json_logic());
-        let time = super::arithmetic::expression(r#"a < 1"#).unwrap();
-        println!("{}", time.to_json_logic());
+         assert!(!jsonlogic::apply(&time.to_json_logic(), &json!({"a" : "2020-01-01"})).unwrap().as_bool().unwrap());
+         
+         assert!(jsonlogic::apply(&time.to_json_logic(), &json!({"a" : "2020-02-03"})).unwrap().as_bool().unwrap());
     }
     #[test]
     fn test_comment() {

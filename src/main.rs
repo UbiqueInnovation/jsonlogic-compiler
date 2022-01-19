@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use jlc;
 
 fn main() {
@@ -19,7 +21,7 @@ fn main() {
              /* OTHER */
             false
         }
-    "#).unwrap();
+    "#, &Arc::new(Mutex::new(vec![]))).unwrap();
     
     let expression = expression.to_json_logic();
    

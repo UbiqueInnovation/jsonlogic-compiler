@@ -5,13 +5,19 @@
 #![allow(clippy::redundant_closure_call)]
 
 use super::*;
-use crate::Statement::VariableAssignment;
 use peg::parser;
 use std::sync::{Arc, Mutex};
 parser! {
 /// Doc comment
 pub grammar arithmetic() for str {
     rule var() -> &'input str = quiet!{$(!keyword() ['a'..='z' | 'A'..='Z']+[ '.' | 'a'..='z' | 'A'..='Z' |'0'..='9' | '_' |'-']*)}/expected!("Variable")
+    rule var_checked(stmts: &Arc<Mutex<Vec<Statement>>>)-> &'input str =  var_name:$(!keyword() ['a'..='z' | 'A'..='Z']+[ '.' | 'a'..='z' | 'A'..='Z' |'0'..='9' | '_' |'-']*) {?
+        if is_defined(stmts, var_name) {
+            Err("Variable already defined")
+        } else {
+            Ok(var_name)
+        }
+    }
     rule number() -> &'input str = quiet!{$("-"?['0'..='9']+)} / expected!("Number")
     rule string() -> &'input str = quiet!{$([^'"']*)} / expected!("String")
     rule float() -> &'input str = quiet!{$(['0'..='9']+"."['0'..='9']+)} / expected!("Float")
@@ -380,33 +386,23 @@ pub grammar arithmetic() for str {
         }
 
     }
-    rule variable_assignment(stmts: &Arc<Mutex<Vec<Statement>>>) -> Statement = _ "let" _ v:var() _ "=" _ e:expression_with_satements(stmts) _ ";" _ {?
+    rule variable_assignment(stmts: &Arc<Mutex<Vec<Statement>>>) -> Statement = _ "let" _ v:var_checked(stmts) _ "=" _ e:expression_with_satements(stmts) _ ";" _ {
         let assignment = Statement::VariableAssignment{name: v.to_string(), expression: Box::new(e)};
-        let mut stmts = stmts.lock().unwrap();
-        if stmts.iter().any(|a| {
-            if let VariableAssignment {
-                name,
-                expression: _expression
-            } = a {
-                name == v
-            } else {
-                false
-            }
-        }) {
-            return Err("Variable already defined");
-        }
+         let mut stmts = stmts.lock().unwrap();
         stmts.push(assignment.clone());
-        Ok(assignment)
+        assignment
     }
-    rule statement(stmts: &Arc<Mutex<Vec<Statement>>>) -> Statement  = _ c:( comment() / variable_assignment(stmts)) _  {?
-        Ok(c)
+    rule variable_assignment_no_fail() -> Statement = _ "let" _ v:var() _ "=" _ e:expression_with_satements((&Arc::new(Mutex::new(vec![])))) _ ";" _ {
+        Statement::VariableAssignment{name: v.to_string(), expression: Box::new(e)}
     }
+    rule statement(stmts: &Arc<Mutex<Vec<Statement>>>)  = _ c:(comment() / variable_assignment(stmts))  _
+    rule statement_no_fail() = _ c:(comment() / variable_assignment_no_fail())  _
 
-    rule expression_with_satements(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = (statement(stmts))* e:(booleanCast((stmts)) / (switch((stmts)) / expected!("Switch")) / (conditionalWithElse((stmts))/ conditional((stmts))/ expected!("Conditional"))  / ( timeOperation((stmts)) / operation((stmts))   /expected!("Binary operator"))/ (arrayOperationWithArguments((stmts)) / arrayOperation((stmts)) / array((stmts))/expected!("Array expression"))  / (unary((stmts)) / function((stmts))/expected!("Function"))) {?
+    rule expression_with_satements(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = (!statement_no_fail() / (statement(stmts))+) e:(booleanCast((stmts)) / (switch((stmts)) / expected!("Switch")) / (conditionalWithElse((stmts))/ conditional((stmts))/ expected!("Conditional"))  / ( timeOperation((stmts)) / operation((stmts))   /expected!("Binary operator"))/ (arrayOperationWithArguments((stmts)) / arrayOperation((stmts)) / array((stmts))/expected!("Array expression"))  / (unary((stmts)) / function((stmts))/expected!("Function"))) {?
         Ok(e)
     }
 
-    pub rule expression(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = (statement(stmts))* e:(booleanCast((stmts)) / (switch((stmts)) / expected!("Switch")) / (conditionalWithElse((stmts))/ conditional((stmts))/ expected!("Conditional"))  / ( timeOperation((stmts)) / operation((stmts))   /expected!("Binary operator"))/ (arrayOperationWithArguments((stmts)) / arrayOperation((stmts)) / array((stmts))/expected!("Array expression"))  / (unary((stmts)) / function((stmts))/expected!("Function"))) {?
+    pub rule expression(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = (!statement_no_fail() / (statement(stmts))+) e:(booleanCast((stmts)) / (switch((stmts)) / expected!("Switch")) / (conditionalWithElse((stmts))/ conditional((stmts))/ expected!("Conditional"))  / ( timeOperation((stmts)) / operation((stmts))   /expected!("Binary operator"))/ (arrayOperationWithArguments((stmts)) / arrayOperation((stmts)) / array((stmts))/expected!("Array expression"))  / (unary((stmts)) / function((stmts))/expected!("Function"))) {?
         Ok(e)
     }
 }}
@@ -434,11 +430,6 @@ fn is_defined(
         _ => None,
     }), Some(_))
 }
-// fn extended_statements(a: Arc<Mutex<Vec<Statement>>>, b: Arc<Mutex<Vec<Statement>>>) -> Vec<Statement> {
-//     let mut v = vec![];
-//     v.extend(a.iter().cloned().chain(b.iter().cloned()));
-//     v
-// }
 
 #[cfg(test)]
 mod tests {

@@ -1,4 +1,4 @@
-use std::io::{Write, Cursor, Read};
+use std::{io::{Write, Cursor, Read}, sync::{Arc, Mutex}};
 
 use flate2::Compression;
 use image::{DynamicImage, ImageFormat};
@@ -21,7 +21,7 @@ extern "C" {
 
 #[wasm_bindgen]
 pub fn get_json_logic(normal: String) -> String {
-    match expression(&normal) {
+    match expression(&normal, &Arc::new(Mutex::new(vec![]))) {
         Ok(exp) => exp.to_string(),
         Err(err) => format!("{:#?}", err),
     }

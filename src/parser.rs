@@ -11,9 +11,9 @@ parser! {
 /// Doc comment
 pub grammar arithmetic() for str {
     rule var() -> &'input str = quiet!{$(!keyword() ['a'..='z' | 'A'..='Z']+[ '.' | 'a'..='z' | 'A'..='Z' |'0'..='9' | '_' |'-']*)}/expected!("Variable")
-    rule var_checked(stmts: &Arc<Mutex<Vec<Statement>>>)-> &'input str =  var_name:$(!keyword() ['a'..='z' | 'A'..='Z']+[ '.' | 'a'..='z' | 'A'..='Z' |'0'..='9' | '_' |'-']*) {?
-        if is_defined(stmts, var_name) {
-            Err("Variable already defined")
+    rule var_checked(stmts: &Arc<Mutex<Vec<Statement>>>, offset: usize)-> &'input str =  var_name:$(!keyword() quiet!{['a'..='z' | 'A'..='Z']+[ '.' | 'a'..='z' | 'A'..='Z' |'0'..='9' | '_' |'-']*}) {?
+        if is_defined(stmts, var_name, Some(offset)) {
+            Err("variable already defined")
         } else {
             Ok(var_name)
         }
@@ -113,7 +113,7 @@ pub grammar arithmetic() for str {
             replace_variable(stmts, v, Expression::Var(v.to_owned()))
         }
         --
-        _ "(" _ e:expression_with_satements(stmts) _ ")" _ { e }
+        _ "(" _ e:expression(stmts) _ ")" _ { e }
     }
 
     rule booleanCast(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ v:var() _ "as Boolean" _ {
@@ -123,7 +123,7 @@ pub grammar arithmetic() for str {
 
     rule operation(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = precedence!{
         v:var() null_coercion() e:expression(stmts) {
-            if is_defined(stmts, v) {
+            if is_defined(stmts, v, None) {
                 replace_variable(stmts, v, Expression::Var(v.to_owned()))
             } else {
                 Expression::VarWithDefault(v.to_owned(),Box::new(e))
@@ -203,21 +203,21 @@ pub grammar arithmetic() for str {
             Expression::Atomic(Value::String(s.to_owned()))
         }
         --
-         _ "[" _ e:expression_with_satements(stmts)** _ "," _ "]" _ { Expression::Array(e)}
+         _ "[" _ e:expression(stmts)** _ "," _ "]" _ { Expression::Array(e)}
         --
-         _ "(" _ e:expression_with_satements(stmts) _ ")" _ { e }
+         _ "(" _ e:expression(stmts) _ ")" _ { e }
     }
-    rule switch_if(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ _ ":" _ "if" second:expression_with_satements(stmts) {
+    rule switch_if(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ _ ":" _ "if" second:expression(stmts) {
         second
     }
 
-    rule switch_block(stmts: &Arc<Mutex<Vec<Statement>>>) -> (Expression,Expression, Option<Expression>) = _ label:expression_with_satements(stmts) second:switch_if(stmts)? _"=>" _ "{" _ e:expression_with_satements(stmts) _"}" _ {
+    rule switch_block(stmts: &Arc<Mutex<Vec<Statement>>>) -> (Expression,Expression, Option<Expression>) = _ label:expression(stmts) second:switch_if(stmts)? _"=>" _ "{" _ e:expression(stmts) _"}" _ {
        (label, e, second)
     }
-    rule default_switch_block(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ "_" _ "=>" _ "{" _ e:expression_with_satements(stmts)  _ "}" _ {
+    rule default_switch_block(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ "_" _ "=>" _ "{" _ e:expression(stmts)  _ "}" _ {
         e
     }
-    rule switch(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ quiet!{"switch"} _ "(" _ e:expression_with_satements(stmts) _ ")" _ "{" _ switch_statements:switch_block(stmts)++ _ default_block:(quiet!{default_switch_block(stmts)}/ expected!("Exhaustive Switch")) _ "}" _ {
+    rule switch(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ quiet!{"switch"} _ "(" _ e:expression(stmts) _ ")" _ "{" _ switch_statements:switch_block(stmts)++ _ default_block:(quiet!{default_switch_block(stmts)}/ expected!("Exhaustive Switch")) _ "}" _ {
         let mut switch_statements = switch_statements;
         let expressions = switch_statements.pop().unwrap();
 
@@ -254,10 +254,7 @@ pub grammar arithmetic() for str {
         }
         final_element
     }
-    rule conditional(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _  quiet!{"if"} _ "(" _ e:expression_with_satements(stmts) _ ")" _ "{" _ i:expression_with_satements(stmts) _ "}" _ {
-        Expression::Conditional{condition: Box::new(e), inner: Box::new(i), other: None}
-    }
-    rule conditionalWithElse(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _  quiet!{"if"} _ "(" _ e:expression_with_satements(stmts) _ ")" _ "{" _ i:expression_with_satements(stmts) _ "}" _ "else" _ "{" _ o:expression_with_satements(stmts) _ "}" _ {
+    rule conditionalWithElse(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _  quiet!{"if"} _ "(" _ e:expression(stmts) _ ")" _ "{" _ i:expression(stmts) _ "}" _ "else" _ "{" _ o:expression(stmts) _ "}" _ {
         Expression::Conditional{condition: Box::new(e), inner: Box::new(i), other: Some(Box::new(o))}
     }
     rule unary(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ now() _ {
@@ -266,23 +263,23 @@ pub grammar arithmetic() for str {
 
     rule keyword() = "if"/"switch"/"else"/"this"/ "true" / "false"
 
-    rule array(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression =  _ "[" _ e:expression_with_satements(stmts)** "," _ "]" _ { Expression::Array(e)}
+    rule array(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression =  _ "[" _ e:expression(stmts)** "," _ "]" _ { Expression::Array(e)}
 
     rule varUnary(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ v:var() _ {
         replace_variable(stmts, v, Expression::Var(v.to_owned()))
     }
 
-    rule arrayOperation(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ expr:(array(stmts) / varUnary(stmts)) _ "::" _ function:var() _ "{" _ inner:expression_with_satements(stmts) _"}" {
+    rule arrayOperation(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ expr:(array(stmts) / varUnary(stmts)) _ "::" _ function:var() _ "{" _ inner:expression(stmts) _"}" {
         Expression::ArrayOperation(Box::new(expr), function.to_owned(), Box::new(inner))
     }
-      rule arrayOperationWithArguments(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ expr:(array(stmts) / varUnary(stmts)) _ "::" _ function:var() _ "(" args:expression_with_satements(stmts)** "," _ ")" _ "{" _ inner:expression_with_satements(stmts) _"}" {
+      rule arrayOperationWithArguments(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ expr:(array(stmts) / varUnary(stmts)) _ "::" _ function:var() _ "(" args:expression(stmts)** "," _ ")" _ "{" _ inner:expression(stmts) _"}" {
         Expression::ArrayOperationWithArguments(Box::new(expr), function.to_owned(), Box::new(inner), args)
     }
     rule booleanExpression(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = b:bool() {
         Expression::Atomic(Value::Bool(b.parse().unwrap()))
     }
     rule this() -> Expression = _ quiet!{"this"} _ {Expression::Var("".to_owned())}
-    rule function(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ !(keyword()) func_name:var() _ "(" _ args:expression_with_satements(stmts)++ "," _ ")" _ {
+    rule function(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ (!keyword()) func_name:var() _ "(" _ args:expression(stmts)++ "," _ ")" _ {
         match func_name {
             "min" => {
 
@@ -386,23 +383,19 @@ pub grammar arithmetic() for str {
         }
 
     }
-    rule variable_assignment(stmts: &Arc<Mutex<Vec<Statement>>>) -> Statement = _ "let" _ v:var_checked(stmts) _ "=" _ e:expression_with_satements(stmts) _ ";" _ {
-        let assignment = Statement::VariableAssignment{name: v.to_string(), expression: Box::new(e)};
-         let mut stmts = stmts.lock().unwrap();
+    rule variable_assignment(stmts: &Arc<Mutex<Vec<Statement>>>) -> Statement = o:position!() "let" _ v:var_checked(stmts, o) _ "=" _ e:expression(stmts) _ ";" {
+        let assignment = Statement::VariableAssignment{offset: o, name: v.to_string(), expression: Box::new(e)};
+        let mut stmts = stmts.lock().unwrap();
         stmts.push(assignment.clone());
         assignment
     }
-    rule variable_assignment_no_fail() -> Statement = _ "let" _ v:var() _ "=" _ e:expression_with_satements((&Arc::new(Mutex::new(vec![])))) _ ";" _ {
-        Statement::VariableAssignment{name: v.to_string(), expression: Box::new(e)}
+    rule variable_assignment_no_fail() -> Statement = o:position!() "let" _ v:var() _ "=" _ e:expression((&Arc::new(Mutex::new(vec![])))) _ ";" {
+        Statement::VariableAssignment{offset: o, name: v.to_string(), expression: Box::new(e)}
     }
     rule statement(stmts: &Arc<Mutex<Vec<Statement>>>)  = _ c:(comment() / variable_assignment(stmts))  _
     rule statement_no_fail() = _ c:(comment() / variable_assignment_no_fail())  _
 
-    rule expression_with_satements(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = (!statement_no_fail() / (statement(stmts))+) e:(booleanCast((stmts)) / (switch((stmts)) / expected!("Switch")) / (conditionalWithElse((stmts))/ expected!("Conditional with else"))  / ( timeOperation((stmts)) / operation((stmts))   /expected!("Binary operator"))/ (arrayOperationWithArguments((stmts)) / arrayOperation((stmts)) / array((stmts))/expected!("Array expression"))  / (unary((stmts)) / function((stmts))/expected!("Function"))) {?
-        Ok(e)
-    }
-
-    pub rule expression(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = (!statement_no_fail() / (statement(stmts))+) e:(booleanCast((stmts)) / (switch((stmts)) / expected!("Switch")) / (conditionalWithElse((stmts))/ expected!("Conditional with else"))  / ( timeOperation((stmts)) / operation((stmts))   /expected!("Binary operator"))/ (arrayOperationWithArguments((stmts)) / arrayOperation((stmts)) / array((stmts))/expected!("Array expression"))  / (unary((stmts)) / function((stmts))/expected!("Function"))) {?
+    pub rule expression(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = (!statement_no_fail() / (statement(stmts))+) e:(booleanCast((stmts)) / (switch((stmts)) / expected!("Switch")) / (conditionalWithElse((stmts)) / expected!("Conditional with else"))  / ( timeOperation((stmts)) / operation((stmts)) /expected!("Binary operator"))/ (arrayOperationWithArguments((stmts)) / arrayOperation((stmts)) / array((stmts))/expected!("Array expression"))  / (unary((stmts)) / function((stmts))/expected!("Function"))) {?
         Ok(e)
     }
 }}
@@ -412,7 +405,11 @@ fn replace_variable(
     expr: Expression,
 ) -> Expression {
     if let Some(variable_replacement) = stmts.lock().unwrap().iter().find_map(|a| match a {
-        Statement::VariableAssignment { name, expression } if name == var_name => Some(expression),
+        Statement::VariableAssignment {
+            offset: _offset,
+            name,
+            expression,
+        } if name == var_name => Some(expression),
         _ => None,
     }) {
         let v = variable_replacement.clone();
@@ -421,14 +418,28 @@ fn replace_variable(
         expr
     }
 }
-fn is_defined(
-    stmts: &Arc<Mutex<Vec<Statement>>>,
-    var_name: &str
-) -> bool {
-    matches!(stmts.lock().unwrap().iter().find_map(|a| match a {
-        Statement::VariableAssignment { name, expression } if name == var_name => Some(expression),
-        _ => None,
-    }), Some(_))
+fn is_defined(stmts: &Arc<Mutex<Vec<Statement>>>, var_name: &str, offset: Option<usize>) -> bool {
+    matches!(
+        stmts.lock().unwrap().iter().find_map(|a| match a {
+            Statement::VariableAssignment {
+                offset: off,
+                name,
+                expression,
+            } if name == var_name => {
+                if let Some(other_offset) = offset {
+                    if off == &other_offset {
+                        None
+                    } else {
+                        Some(expression)
+                    }
+                } else {
+                    Some(expression)
+                }
+            }
+            _ => None,
+        }),
+        Some(_)
+    )
 }
 
 #[cfg(test)]
@@ -444,17 +455,19 @@ mod tests {
         let logic = r#"
         let test = "1234";
         let a = test;
-        a ?? true"#;
+       a"#;
         let logic = super::arithmetic::expression(logic, &Arc::new(Mutex::new(vec![]))).unwrap();
         println!("{}", logic.to_json_logic());
     }
     #[test]
     fn if_without_else_fails() {
-          let logic = r#"
+        let logic = r#"
+        let a = "test";
         if (a == "test") {
            a
-        } "#;
-        let logic = super::arithmetic::expression(logic, &Arc::new(Mutex::new(vec![]))).unwrap_err();
+        }"#;
+        let logic =
+            super::arithmetic::expression(logic, &Arc::new(Mutex::new(vec![]))).unwrap_err();
         println!("{:?}", logic);
     }
     #[test]
@@ -466,7 +479,8 @@ mod tests {
         if (a == "test") {
            a
         } else { undefined }"#;
-        let logic = super::arithmetic::expression(logic, &Arc::new(Mutex::new(vec![]))).unwrap_err();
+        let logic =
+            super::arithmetic::expression(logic, &Arc::new(Mutex::new(vec![]))).unwrap_err();
         println!("{:?}", logic);
     }
     #[test]

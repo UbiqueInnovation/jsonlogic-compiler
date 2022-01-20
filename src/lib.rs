@@ -10,6 +10,7 @@ pub use parser::arithmetic;
 #[derive(Clone, PartialEq, Debug)]
 pub enum Statement {
     VariableAssignment {
+        offset: usize,
         name: String,
         expression: Box<Expression>,
     },

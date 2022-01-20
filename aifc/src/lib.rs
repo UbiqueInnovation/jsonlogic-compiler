@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display, sync::{Arc, Mutex}};
+use std::{error::Error, fmt::Display, sync::{Arc, Mutex}, ops::RangeBounds};
 
 use colorize::AnsiColor;
 
@@ -22,7 +22,11 @@ pub fn compile_logic(input: &str, minified: bool) -> Result<String, AifcCompileE
             }
             output.push_str(&"^".red());
             output.push(' ');
-            output.push_str(&format!("Expected: [{}]", e.expected).red());
+            if e.expected.tokens().any(|a| a == "variable already defined") {
+                output.push_str(&"variable already defined".red());
+            } else {
+                output.push_str(&format!("Expected: [{}]", e.expected).red());
+            }
             output.push('\n');
             if line_num < lines.len() - 1 {
                 output.push_str(&(lines[line_num + 1].clone().green()));

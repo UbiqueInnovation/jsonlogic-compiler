@@ -9,5 +9,5 @@ name = "jlc"
 
 [dependencies]
 jsonlogic = {version = "0.5.4", git = "https://github.com/ubamrein/jsonlogic_rs.git"}
-peg = "0.7.0"
+peg = {version = "0.8.0"}
 serde_json = "1.0.64"

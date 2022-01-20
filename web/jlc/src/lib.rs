@@ -1,4 +1,4 @@
-use std::{io::{Write, Cursor, Read}, sync::{Arc, Mutex}};
+use std::{io::{Write, Read}, sync::{Arc, Mutex}};
 
 use flate2::Compression;
 use image::{DynamicImage, ImageFormat};

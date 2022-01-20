@@ -398,11 +398,11 @@ pub grammar arithmetic() for str {
     rule statement(stmts: &Arc<Mutex<Vec<Statement>>>)  = _ c:(comment() / variable_assignment(stmts))  _
     rule statement_no_fail() = _ c:(comment() / variable_assignment_no_fail())  _
 
-    rule expression_with_satements(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = (!statement_no_fail() / (statement(stmts))+) e:(booleanCast((stmts)) / (switch((stmts)) / expected!("Switch")) / (conditionalWithElse((stmts))/ conditional((stmts))/ expected!("Conditional"))  / ( timeOperation((stmts)) / operation((stmts))   /expected!("Binary operator"))/ (arrayOperationWithArguments((stmts)) / arrayOperation((stmts)) / array((stmts))/expected!("Array expression"))  / (unary((stmts)) / function((stmts))/expected!("Function"))) {?
+    rule expression_with_satements(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = (!statement_no_fail() / (statement(stmts))+) e:(booleanCast((stmts)) / (switch((stmts)) / expected!("Switch")) / (conditionalWithElse((stmts))/ expected!("Conditional with else"))  / ( timeOperation((stmts)) / operation((stmts))   /expected!("Binary operator"))/ (arrayOperationWithArguments((stmts)) / arrayOperation((stmts)) / array((stmts))/expected!("Array expression"))  / (unary((stmts)) / function((stmts))/expected!("Function"))) {?
         Ok(e)
     }
 
-    pub rule expression(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = (!statement_no_fail() / (statement(stmts))+) e:(booleanCast((stmts)) / (switch((stmts)) / expected!("Switch")) / (conditionalWithElse((stmts))/ conditional((stmts))/ expected!("Conditional"))  / ( timeOperation((stmts)) / operation((stmts))   /expected!("Binary operator"))/ (arrayOperationWithArguments((stmts)) / arrayOperation((stmts)) / array((stmts))/expected!("Array expression"))  / (unary((stmts)) / function((stmts))/expected!("Function"))) {?
+    pub rule expression(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = (!statement_no_fail() / (statement(stmts))+) e:(booleanCast((stmts)) / (switch((stmts)) / expected!("Switch")) / (conditionalWithElse((stmts))/ expected!("Conditional with else"))  / ( timeOperation((stmts)) / operation((stmts))   /expected!("Binary operator"))/ (arrayOperationWithArguments((stmts)) / arrayOperation((stmts)) / array((stmts))/expected!("Array expression"))  / (unary((stmts)) / function((stmts))/expected!("Function"))) {?
         Ok(e)
     }
 }}
@@ -447,6 +447,15 @@ mod tests {
         a ?? true"#;
         let logic = super::arithmetic::expression(logic, &Arc::new(Mutex::new(vec![]))).unwrap();
         println!("{}", logic.to_json_logic());
+    }
+    #[test]
+    fn if_without_else_fails() {
+          let logic = r#"
+        if (a == "test") {
+           a
+        } "#;
+        let logic = super::arithmetic::expression(logic, &Arc::new(Mutex::new(vec![]))).unwrap_err();
+        println!("{:?}", logic);
     }
     #[test]
     fn multiple_var_bail() {
@@ -836,8 +845,10 @@ mod tests {
                         This is a multiline comment
                     */
                     c
+                } else {
+                    undefined
                 }
-            }
+            } else { undefined }
         }};
     }
 

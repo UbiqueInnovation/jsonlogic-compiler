@@ -981,7 +981,9 @@ There are only multiline comments supported, using the following syntax
 
 ### Variable Assignments
 
-Currently, basic variable statements are supported. There is no compile time check if a name is defined multiple times. Further, a declared variable can only be used in the proceeding blocks.
+Currently, basic variable statements are supported. Anything which either evaluates to a previously defined variable or an expression can be used as an rvalue. The compiler will report variables which are defined twice. 
+  
+Variables are scoped to the corresponding block, inheriting the parent scope. Consider the following examples:
 
 ```js
 let a = b;
@@ -993,28 +995,44 @@ will produce
 
 ```json
 {
-  "var": "a"
-}
-````
-
-as the binding of internal variable `a` to `c` is only applied in the following block.
-
-But note that 
-
-```js
-let a = b;
-(
-    let c = a;
-    c
-)
-```
-
-produces as we expect
-
-```json
-{
   "var": "b"
 }
 ```
 
-since the parenthesis define a new block.
+The following will fail, since `a` is defined twice:
+
+```js
+let a = "test";
+let a = 1;
+```
+
+This on the other hand is fine, since `a` is scoped to either the `if` or `else` branch.
+```js
+if (true) {
+  let a = "true";
+  a
+} else {
+  let a = "false";
+  a
+}
+```
+  
+### Imports
+The compiler will allow `import` statements to include other files. First all input is stiched together and then the compiler tries to parse it. As such, only imports which define variables via `let` binding are supported. For obvious reasons, the online web compiler does _not_ support import statements. Imported files __must__ be referenced relative to the file being compiled.
+  
+`globals.aifc`
+```js
+ let yes = true;
+ let no = false;
+```
+`test.aifc`
+```js
+/* globals.aifc is in the same directory as test.aifc */
+import "globals.aifc";
+
+if (yes) {
+  true
+} else {
+  false 
+}
+```

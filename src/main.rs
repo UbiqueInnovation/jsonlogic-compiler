@@ -1,7 +1,3 @@
-use std::sync::{Arc, Mutex};
-
-use jlc;
-
 fn main() {
     let expression = jlc::arithmetic::expression(
         r#"

@@ -461,8 +461,6 @@ fn is_defined(stmts: &Arc<Mutex<Vec<Statement>>>, var_name: &str, offset: Option
 #[cfg(test)]
 mod tests {
 
-    use std::ops::RangeBounds;
-
     use serde_json::{json, Value};
 
     use crate::{to_json_logic, Expression, Import};

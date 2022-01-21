@@ -47,7 +47,7 @@ pub enum Expression {
 }
 
 fn get(value: &serde_json::Value, path: &str) -> Option<Expression> {
-    let splits = path.split(".");
+    let splits = path.split('.');
     let mut expression = Expression::Atomic(Value::Null);
     for s in splits {
         if let Some(a) = value.get(s) {
@@ -72,7 +72,7 @@ impl From<&serde_json::Value> for Value {
             serde_json::Value::Number(n) if n.as_u64().is_some() => {
                 Self::Int(n.as_u64().unwrap() as i128)
             }
-            serde_json::Value::Number(n) => Self::Null,
+            serde_json::Value::Number(_) => Self::Null,
             serde_json::Value::String(s) => Self::String(s.to_string()),
             serde_json::Value::Array(a) => {
                 let mut inner = Vec::with_capacity(a.len());
@@ -500,7 +500,7 @@ impl std::fmt::Display for Operation {
 }
 
 impl Operation {
-    pub fn eval(&self, data: &serde_json::Value) -> Result<Expression, String> {
+    pub fn eval(&self, _data: &serde_json::Value) -> Result<Expression, String> {
         match self {
             Operation::Plus(_, _) => todo!(),
             Operation::Minus(_, _) => todo!(),
@@ -563,7 +563,6 @@ impl Operation {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
 
     use serde_json::json;
 

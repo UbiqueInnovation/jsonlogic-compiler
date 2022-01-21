@@ -1,13 +1,35 @@
 use std::{
     error::Error,
     fmt::Display,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex}, path::Path,
 };
 
 use colorize::AnsiColor;
 use jlc::Import;
 
-pub fn compile_logic(file_input: &str, minified: bool) -> Result<String, AifcCompileError> {
+pub fn compile_logic(file_path: &Path, minified: bool) -> Result<String, AifcCompileError> {
+    let mut input = String::new();
+    let file_input = std::fs::read_to_string(file_path).unwrap();
+    let file_dir = file_path.parent().unwrap();
+    match jlc::arithmetic::resolve_imports(&file_input) {
+        Ok((rest, imports)) => {
+            println!("Found {} imports", imports.len());
+            for import in imports {
+                if let Import::Path(p) = import {
+                    let import_content = std::fs::read_to_string(file_dir.join(p))
+                        .map_err(|e| AifcCompileError::PrettyfyError(Box::new(e)))?;
+                    input.push_str(&import_content);
+                    input.push('\n');
+                }
+            }
+            input.push_str(&rest);
+        }
+        Err(e) => return Err(AifcCompileError::PrettyfyError(Box::new(e))),
+    };
+    internal_compile_logic(&input, minified)
+}
+
+pub fn compile_logic_from_str(file_input: &str, minified: bool) -> Result<String, AifcCompileError> {
     let mut input = String::new();
     match jlc::arithmetic::resolve_imports(file_input) {
         Ok((rest, imports)) => {
@@ -103,7 +125,7 @@ pub mod ffi {
                 return JObject::null().into_inner();
             }
         };
-        let logic = match super::compile_logic(input, minified == JNI_TRUE) {
+        let logic = match super::compile_logic_from_str(input, minified == JNI_TRUE) {
             Ok(logic) => logic,
             Err(e) => {
                 let _ = env.throw(("ch/ubique/aifc/AifcCompilerError", format!("{:?}", e)));

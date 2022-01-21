@@ -3,7 +3,8 @@ use std::sync::{Arc, Mutex};
 use jlc;
 
 fn main() {
-    let expression = jlc::arithmetic::expression(r#"
+    let expression = jlc::arithmetic::expression(
+        r#"
         /* TEST COMMENT */
         if ( 
             /* OTHER */
@@ -21,12 +22,14 @@ fn main() {
              /* OTHER */
             false
         }
-    "#, &Arc::new(Mutex::new(vec![]))).unwrap();
-    
+    "#,
+    )
+    .unwrap();
+
     let expression = expression.to_json_logic();
-   
+
     println!("{}", serde_json::to_string_pretty(&expression).unwrap());
-    let data  = serde_json::json!(
+    let data = serde_json::json!(
         {
             "external": {
                 "acceptance-criterias" : {

@@ -22,7 +22,7 @@ pub enum Statement {
 #[derive(Clone, PartialEq, Debug)]
 pub enum Import {
     Path(String),
-    Name(String)
+    Name(String),
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -416,8 +416,7 @@ impl Comparison {
                     _ => Err(format!("cannot compare {:?} {:?}", a, b)),
                 }
             }
-            Comparison::NotEqual(a, b)|
-            Comparison::NotExactEqual(a, b) => {
+            Comparison::NotEqual(a, b) | Comparison::NotExactEqual(a, b) => {
                 let a = a.eval(data)?;
                 let b = b.eval(data)?;
                 match (&a, &b) {
@@ -439,7 +438,7 @@ impl Comparison {
                     ) => Ok(Expression::Atomic(Value::Bool(a != b))),
                     _ => Err(format!("cannot compare {:?} {:?}", a, b)),
                 }
-            },
+            }
             Comparison::Before(_, _) => todo!(),
             Comparison::NotBefore(_, _) => todo!(),
             Comparison::After(_, _) => todo!(),
@@ -574,11 +573,8 @@ mod tests {
     fn test_eval() {
         let mut duration_eval = 0;
         let mut duration_json = 0;
-        let logic: Expression = super::arithmetic::expression(
-            r#"if (999 >= b) {true} else { false }"#,
-            &Arc::new(Mutex::new(vec![])),
-        )
-        .unwrap();
+        let logic: Expression =
+            super::arithmetic::expression(r#"if (999 >= b) {true} else { false }"#).unwrap();
         let json_logic = logic.to_json_logic();
         for i in 0..=10000 {
             let start_eval = std::time::Instant::now();

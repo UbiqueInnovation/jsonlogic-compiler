@@ -49,7 +49,7 @@ pub fn compile_logic_from_str(file_input: &str, minified: bool) -> Result<String
     internal_compile_logic(&input, minified)
 }
 fn internal_compile_logic(input: &str, minified: bool) -> Result<String, AifcCompileError> {
-    let json_logic = match jlc::arithmetic::expression(input, &Arc::new(Mutex::new(vec![]))) {
+    let json_logic = match jlc::arithmetic::expression(input) {
         Ok(logic) => logic,
         Err(e) => {
             let location = e.location;

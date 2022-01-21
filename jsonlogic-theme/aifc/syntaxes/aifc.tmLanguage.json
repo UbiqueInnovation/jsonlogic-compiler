@@ -45,7 +45,7 @@
 		"keywords": {
 			"patterns": [{
 				"name": "keyword.control.aifc",
-				"match": "\\b(if|else|switch|as|null|undefined|in|this|accumulator|current|not|let)\\b"
+				"match": "\\b(import|if|else|switch|as|null|undefined|in|this|accumulator|current|not|let)\\b"
 			}]
 		},
 		"strings": {

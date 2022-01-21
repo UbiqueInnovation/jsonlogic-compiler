@@ -23,6 +23,7 @@ pub enum Statement {
 pub enum Import {
     Path(String),
     Name(String),
+    None
 }
 
 #[derive(Clone, PartialEq, Debug)]

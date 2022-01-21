@@ -54,6 +54,9 @@ pub grammar arithmetic() for str {
     rule comment() -> Statement = _ "/*" _ comment:($((!("*/")['\0'..='\x7f'])*)) _ "*/" _ {?
         Ok(Statement::Comment(comment.to_string()))
     }
+    rule import_comment() -> Import = _ "/*" _ comment:($((!("*/")['\0'..='\x7f'])*)) _ "*/" _ {?
+        Ok(Import::None)
+    }
     rule importname() -> &'input str  = quiet!{$(!keyword() [ '/'| '.' | 'a'..='z' | 'A'..='Z' |'0'..='9' | '_' |'-']+)}/expected!("import name")
 
     rule import() -> Import = _ "import" _ "\"" v:importname() "\"" _ ";" {
@@ -407,7 +410,7 @@ pub grammar arithmetic() for str {
     pub rule expression() -> Expression = e:expression_with_level((&Arc::new(Mutex::new(vec![])))) {
         e
     }
-    pub rule resolve_imports() -> (String, Vec<Import>) = i:(import()*) rest:$([_]*) {
+    pub rule resolve_imports() -> (String, Vec<Import>) = i:((import()/import_comment())*) rest:$([_]*) {
         (rest.to_string(),i)
     }
 }}

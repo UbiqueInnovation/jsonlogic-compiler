@@ -1,7 +1,7 @@
 use std::{
     error::Error,
     fmt::Display,
-    sync::{Arc, Mutex}, path::Path,
+    path::Path,
 };
 
 use colorize::AnsiColor;
@@ -13,6 +13,7 @@ pub fn compile_logic(file_path: &Path, minified: bool) -> Result<String, AifcCom
     let file_dir = file_path.parent().unwrap();
     match jlc::arithmetic::resolve_imports(&file_input) {
         Ok((rest, imports)) => {
+            let imports = imports.iter().filter(|a| matches!(a, Import::Path(..))).collect::<Vec<_>>();
             println!("Found {} imports", imports.len());
             for import in imports {
                 if let Import::Path(p) = import {

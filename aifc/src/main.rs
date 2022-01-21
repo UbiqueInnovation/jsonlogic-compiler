@@ -23,7 +23,7 @@ fn main() {
         Ok(logic) => logic,
         Err(e) => { 
             println!("{}", e);
-            return;
+            std::process::exit(1);
         },
     };
 

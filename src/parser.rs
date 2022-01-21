@@ -54,6 +54,11 @@ pub grammar arithmetic() for str {
     rule comment() -> Statement = _ "/*" _ comment:($((!("*/")['\0'..='\x7f'])*)) _ "*/" _ {?
         Ok(Statement::Comment(comment.to_string()))
     }
+    rule importname() -> &'input str  = quiet!{$(!keyword() [ '/'| '.' | 'a'..='z' | 'A'..='Z' |'0'..='9' | '_' |'-']+)}/expected!("import name")
+
+    rule import() -> Import = _ "import" _ "\"" v:importname() "\"" _ ";" {
+        Import::Path(v.to_string())
+    }
 
     rule timeOperation(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = precedence!{
           x:(@) plus() y:@ {
@@ -389,14 +394,14 @@ pub grammar arithmetic() for str {
         stmts.push(assignment.clone());
         assignment
     }
-    rule variable_assignment_no_fail() -> Statement = o:position!() "let" _ v:var() _ "=" _ e:expression((&Arc::new(Mutex::new(vec![])))) _ ";" {
-        Statement::VariableAssignment{offset: o, name: v.to_string(), expression: Box::new(e)}
-    }
-    rule statement(stmts: &Arc<Mutex<Vec<Statement>>>)  = _ c:(comment() / variable_assignment(stmts))  _
-    rule statement_no_fail() = _ c:(comment() / variable_assignment_no_fail())  _
 
-    pub rule expression(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = (!statement_no_fail() / (statement(stmts))+) e:(booleanCast((stmts)) / (switch((stmts)) / expected!("Switch")) / (conditionalWithElse((stmts)) / expected!("Conditional with else"))  / ( timeOperation((stmts)) / operation((stmts)) /expected!("Binary operator"))/ (arrayOperationWithArguments((stmts)) / arrayOperation((stmts)) / array((stmts))/expected!("Array expression"))  / (unary((stmts)) / function((stmts))/expected!("Function"))) {?
+    rule statement(stmts: &Arc<Mutex<Vec<Statement>>>)  = _ c:(comment() / variable_assignment(stmts))  _
+    
+    pub rule expression(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression =  ((statement(stmts))*) e:(booleanCast((stmts)) / (switch((stmts)) / expected!("Switch")) / (conditionalWithElse((stmts)) / expected!("Conditional with else"))  / ( timeOperation((stmts)) / operation((stmts)) /expected!("Binary operator"))/ (arrayOperationWithArguments((stmts)) / arrayOperation((stmts)) / array((stmts))/expected!("Array expression"))  / (unary((stmts)) / function((stmts))/expected!("Function"))) {?
         Ok(e)
+    }
+    pub rule resolve_imports() -> (String, Vec<Import>) = i:(import()*) rest:$([_]*) {
+        (rest.to_string(),i)
     }
 }}
 fn replace_variable(
@@ -448,7 +453,28 @@ mod tests {
 
     use serde_json::{json, Value};
 
-    use crate::{to_json_logic, Expression};
+    use crate::{to_json_logic, Expression, Import};
+
+    #[test]
+    fn test_import() {
+        let logic = r#"import "globals.aifc";import "other.aifc";
+
+        let test = "1234";
+        let a = test;
+        if (a === b) {
+            true
+        } else {
+            false
+        }
+        "#; 
+        let (logic, imports) : (String, Vec<Import>) = super::arithmetic::resolve_imports(logic).unwrap();
+        let logic : Expression = super::arithmetic::expression(&logic, &Arc::new(Mutex::new(vec![]))).unwrap();
+         println!("{}", logic.to_json_logic());
+         assert!(!imports.is_empty());
+         for import in imports {
+             println!("{:?}", import);
+         }
+    }
 
     #[test]
     fn test_vars_in_vars_replacement() {

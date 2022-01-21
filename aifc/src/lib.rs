@@ -1,8 +1,32 @@
-use std::{error::Error, fmt::Display, sync::{Arc, Mutex}, ops::RangeBounds};
+use std::{
+    error::Error,
+    fmt::Display,
+    sync::{Arc, Mutex},
+};
 
 use colorize::AnsiColor;
+use jlc::Import;
 
-pub fn compile_logic(input: &str, minified: bool) -> Result<String, AifcCompileError> {
+pub fn compile_logic(file_input: &str, minified: bool) -> Result<String, AifcCompileError> {
+    let mut input = String::new();
+    match jlc::arithmetic::resolve_imports(file_input) {
+        Ok((rest, imports)) => {
+            println!("Found {} imports", imports.len());
+            for import in imports {
+                if let Import::Path(p) = import {
+                    let import_content = std::fs::read_to_string(&p)
+                        .map_err(|e| AifcCompileError::PrettyfyError(Box::new(e)))?;
+                    input.push_str(&import_content);
+                    input.push('\n');
+                }
+            }
+            input.push_str(&rest);
+        }
+        Err(e) => return Err(AifcCompileError::PrettyfyError(Box::new(e))),
+    };
+    internal_compile_logic(&input, minified)
+}
+fn internal_compile_logic(input: &str, minified: bool) -> Result<String, AifcCompileError> {
     let json_logic = match jlc::arithmetic::expression(input, &Arc::new(Mutex::new(vec![]))) {
         Ok(logic) => logic,
         Err(e) => {
@@ -68,28 +92,28 @@ pub mod ffi {
         let input = match env.get_string(input) {
             Ok(input) => input,
             Err(e) => {
-                let _ = env.throw(("ch/ubique/aifc/AifcCompilerError",format!("{:?}", e)));
+                let _ = env.throw(("ch/ubique/aifc/AifcCompilerError", format!("{:?}", e)));
                 return JObject::null().into_inner();
             }
         };
         let input = match input.to_str() {
             Ok(input) => input,
             Err(e) => {
-                let _ = env.throw(("ch/ubique/aifc/AifcCompilerError",format!("{:?}", e)));
+                let _ = env.throw(("ch/ubique/aifc/AifcCompilerError", format!("{:?}", e)));
                 return JObject::null().into_inner();
             }
         };
         let logic = match super::compile_logic(input, minified == JNI_TRUE) {
             Ok(logic) => logic,
             Err(e) => {
-                 let _ = env.throw(("ch/ubique/aifc/AifcCompilerError",format!("{:?}", e)));
+                let _ = env.throw(("ch/ubique/aifc/AifcCompilerError", format!("{:?}", e)));
                 return JObject::null().into_inner();
             }
         };
         let logic_string = match env.new_string(logic) {
             Ok(logic) => logic,
             Err(e) => {
-                let _ = env.throw(("ch/ubique/aifc/AifcCompilerError",format!("{:?}", e)));
+                let _ = env.throw(("ch/ubique/aifc/AifcCompilerError", format!("{:?}", e)));
                 return JObject::null().into_inner();
             }
         };

@@ -23,7 +23,7 @@ pub enum Statement {
 pub enum Import {
     Path(String),
     Name(String),
-    None
+    None,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -117,9 +117,16 @@ impl Expression {
                     Err(String::from("Non exhaustive if"))
                 }
             }
-            Expression::Not(_) => todo!(),
+            Expression::Not(expr) => {
+                let bool_expr = expr.eval(data)?.as_bool()?;
+                Ok(Expression::Atomic(Value::Bool(bool_expr)))
+            }
             Expression::Var(key) => {
-                get(data, key).ok_or_else(|| String::from("variable not found"))
+                if let Some(val) = get(data, key) {
+                    Ok(val)
+                } else {
+                    Ok(Expression::Atomic(Value::Null))
+                }
             }
             Expression::VarWithDefault(key, def) => {
                 if let Some(v) = get(data, key) {
@@ -132,10 +139,38 @@ impl Expression {
             Expression::Comparison(comp) => comp.eval(data),
             Expression::Atomic(_) => Ok(self.to_owned()),
             Expression::TimeInterval(_, _) => todo!(),
-            Expression::Array(_) => todo!(),
+            Expression::Array(arr) => {
+                let mut new_array = vec![];
+                for ele in arr {
+                    new_array.push(ele.eval(data)?);
+                }
+                Ok(Expression::Array(new_array))
+            }
             Expression::ArrayOperation(_, _, _) => todo!(),
             Expression::ArrayOperationWithArguments(_, _, _, _) => todo!(),
-            Expression::Function(_, _) => todo!(),
+            Expression::Function(function_name, arguments) => match function_name.as_str() {
+                "in" => {
+                    if !arguments.len() == 2 {
+                        return Err(format!(
+                            "In function needs to arguments. {} were given",
+                            arguments.len()
+                        ));
+                    }
+                    let what = arguments[0].eval(data)?;
+                    let array = arguments[1].eval(data)?;
+
+                    if let Expression::Atomic(Value::Array(arr)) = array {
+                        for exp in &arr {
+                            
+                            if Expression::Atomic(exp.to_owned()) == what {
+                                return Ok(Expression::Atomic(Value::Bool(true)));
+                            }
+                        }
+                    }
+                    Ok(Expression::Atomic(Value::Bool(false)))
+                }
+                _ => todo!("Only in is supported"),
+            },
             Expression::Comment(_) => todo!(),
         }
     }
@@ -322,6 +357,16 @@ impl Comparison {
                         Expression::Atomic(Value::String(a)),
                         Expression::Atomic(Value::String(b)),
                     ) => Ok(Expression::Atomic(Value::Bool(a < b))),
+                    (Expression::Atomic(Value::Null), Expression::Atomic(Value::Null)) => {
+                        Ok(Expression::Atomic(Value::Bool(true)))
+                    }
+                    (Expression::Atomic(Value::Null), _) => {
+                        Ok(Expression::Atomic(Value::Bool(false)))
+                    }
+                    (_, Expression::Atomic(Value::Null)) => {
+                        Ok(Expression::Atomic(Value::Bool(false)))
+                    }
+
                     _ => Err(format!("cannot compare {:?} {:?}", a, b)),
                 }
             }
@@ -413,7 +458,8 @@ impl Comparison {
                     (
                         Expression::Atomic(Value::String(a)),
                         Expression::Atomic(Value::String(b)),
-                    ) => Ok(Expression::Atomic(Value::Bool(a == b))),
+                    ) => {
+                        Ok(Expression::Atomic(Value::Bool(a == b)))},
                     _ => Err(format!("cannot compare {:?} {:?}", a, b)),
                 }
             }

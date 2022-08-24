@@ -19,7 +19,7 @@ pub enum Statement {
     Comment(String),
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Import {
     Path(String),
     Name(String),
@@ -48,6 +48,9 @@ pub enum Expression {
 }
 
 fn get(value: &serde_json::Value, path: &str) -> Option<Expression> {
+    if path.is_empty() {
+        return Some(Expression::Atomic(Value::from(value)));
+    }
     let splits = path.split('.');
     let mut expression = Expression::Atomic(Value::Null);
     for s in splits {
@@ -138,16 +141,44 @@ impl Expression {
             Expression::Operation(op) => op.eval(data),
             Expression::Comparison(comp) => comp.eval(data),
             Expression::Atomic(_) => Ok(self.to_owned()),
-            Expression::TimeInterval(_, _) => todo!(),
+            Expression::TimeInterval(amount, unit) => {
+                let amount = amount.eval(data)?;
+                Ok(Expression::TimeInterval(Box::new(amount), unit.to_owned()))
+            }
             Expression::Array(arr) => {
                 let mut new_array = vec![];
                 for ele in arr {
-                    new_array.push(ele.eval(data)?);
+                    let result = ele.eval(data)?;
+                    if let Expression::Atomic(atomic_value) = result {
+                        new_array.push(atomic_value);
+                    } else {
+                        new_array.push(Value::Null);
+                    }
                 }
-                Ok(Expression::Array(new_array))
+                Ok(Expression::Atomic(Value::Array(new_array)))
             }
-            Expression::ArrayOperation(_, _, _) => todo!(),
-            Expression::ArrayOperationWithArguments(_, _, _, _) => todo!(),
+            Expression::ArrayOperation(array, function, block) => {
+                let array = array.eval(data)?;
+                match function.as_str() {
+                    "filter" => match array {
+                        Expression::Atomic(Value::Array(arr)) => {
+                            let new_arr: Vec<_> = arr
+                                .into_iter()
+                                .filter(|a| {
+                                    block
+                                        .eval(&a.to_serde_json())
+                                        .and_then(|a| a.as_bool())
+                                        .unwrap_or(false)
+                                })
+                                .collect();
+                            Ok(Expression::Atomic(Value::Array(new_arr)))
+                        }
+                        _ => Err("Array operation can only be applied to an array".into()),
+                    },
+                    _ => Err("Function not implemented".into()),
+                }
+            }
+            Expression::ArrayOperationWithArguments(..) => todo! {},
             Expression::Function(function_name, arguments) => match function_name.as_str() {
                 "in" => {
                     if !arguments.len() == 2 {
@@ -161,7 +192,6 @@ impl Expression {
 
                     if let Expression::Atomic(Value::Array(arr)) = array {
                         for exp in &arr {
-                            
                             if Expression::Atomic(exp.to_owned()) == what {
                                 return Ok(Expression::Atomic(Value::Bool(true)));
                             }
@@ -171,7 +201,7 @@ impl Expression {
                 }
                 _ => todo!("Only in is supported"),
             },
-            Expression::Comment(_) => todo!(),
+            Expression::Comment(_) => Ok(self.to_owned()),
         }
     }
     pub fn to_json_logic(&self) -> serde_json::Value {
@@ -185,21 +215,21 @@ impl Expression {
                 let inner = inner.to_json_logic();
                 if let Some(other) = other.as_ref() {
                     let other = other.to_json_logic();
-                    return json!({
+                    json!({
 
                         "if" : [
                             cond,
                             inner,
                             other
                         ]
-                    });
+                    })
                 } else {
-                    return json!({
+                    json!({
                         "if" : [
                             cond,
                             inner
                         ]
-                    });
+                    })
                 }
             }
             Expression::Var(v) => {
@@ -293,6 +323,17 @@ impl Value {
             &Self::Int(i) => serde_json::Value::Number((i as i64).into()),
             &Self::Float(f) => {
                 serde_json::Value::Number(serde_json::value::Number::from_f64(f).unwrap())
+            }
+            Self::Array(array) => {
+                let value_array = array.iter().map(|a| a.to_serde_json()).collect::<Vec<_>>();
+                serde_json::Value::Array(value_array)
+            }
+            Self::Object(obj) => {
+                let json_dict = obj
+                    .iter()
+                    .map(|(key, value)| (key.to_string(), value.to_serde_json()))
+                    .collect::<serde_json::Map<_, _>>();
+                serde_json::Value::Object(json_dict)
             }
             _ => serde_json::Value::Null,
         }
@@ -458,8 +499,7 @@ impl Comparison {
                     (
                         Expression::Atomic(Value::String(a)),
                         Expression::Atomic(Value::String(b)),
-                    ) => {
-                        Ok(Expression::Atomic(Value::Bool(a == b)))},
+                    ) => Ok(Expression::Atomic(Value::Bool(a == b))),
                     _ => Err(format!("cannot compare {:?} {:?}", a, b)),
                 }
             }
@@ -547,7 +587,7 @@ impl std::fmt::Display for Operation {
 }
 
 impl Operation {
-    pub fn eval(&self, _data: &serde_json::Value) -> Result<Expression, String> {
+    pub fn eval(&self, data: &serde_json::Value) -> Result<Expression, String> {
         match self {
             Operation::Plus(_, _) => todo!(),
             Operation::Minus(_, _) => todo!(),
@@ -555,7 +595,25 @@ impl Operation {
             Operation::MinusTime(_, _) => todo!(),
             Operation::And(_, _) => todo!(),
             Operation::Or(_, _) => todo!(),
-            Operation::Modulo(_, _) => todo!(),
+            Operation::Modulo(left, right) => {
+                let left = left.eval(data)?;
+                let right = right.eval(data)?;
+                match (left, right) {
+                    (
+                        Expression::Atomic(Value::Int(left)),
+                        Expression::Atomic(Value::Int(right)),
+                    ) => Ok(Expression::Atomic(Value::Int(left % right))),
+                    (
+                        Expression::Atomic(Value::Float(left)),
+                        Expression::Atomic(Value::Int(right)),
+                    ) => Ok(Expression::Atomic(Value::Int(left as i128 % right))),
+                    (
+                        Expression::Atomic(Value::Int(left)),
+                        Expression::Atomic(Value::Float(right)),
+                    ) => Ok(Expression::Atomic(Value::Int(left as i128 % right as i128))),
+                    _ => todo! {},
+                }
+            }
         }
     }
     fn extract_inner_if_same<'other>(
@@ -619,8 +677,10 @@ mod tests {
     fn test_eval() {
         let mut duration_eval = 0;
         let mut duration_json = 0;
-        let logic: Expression =
-            super::arithmetic::expression(r#"if (999 >= b) {true} else { false }"#).unwrap();
+        let logic: Expression = super::arithmetic::expression(
+            r#"if (999 >= b) {[1,2,3,4]::filter { this % 2 == 0 }} else { false }"#,
+        )
+        .unwrap();
         let json_logic = logic.to_json_logic();
         for i in 0..=10000 {
             let start_eval = std::time::Instant::now();
@@ -632,11 +692,27 @@ mod tests {
             let end_json = std::time::Instant::now();
             duration_eval += (end_eval - start_eval).as_nanos();
             duration_json += (end_json - start_json).as_nanos();
-            println!("{:?}", result_eval);
-            println!("{:?}", result);
+            if let Expression::Atomic(val) = result_eval {
+                assert_eq!(val.to_serde_json(), result);
+            } else {
+                panic!("Result eval did not evaluate to an atomic value");
+            }
         }
         println!();
         println!("Eval: {}", duration_eval / 10000);
         println!("JsonLogic: {}", duration_json / 10000);
+    }
+    #[test]
+    fn test_array_op_eval() {
+        let logic: Expression =
+            super::arithmetic::expression("[1,2,3,4]::filter { this % 2 == 0}").unwrap();
+        let result = logic.eval(&json! {{}}).unwrap();
+        if let Expression::Atomic(crate::Value::Array(arr)) = result {
+            assert_eq!(arr.len(), 2);
+            assert_eq!(arr[0], crate::Value::Int(2));
+            assert_eq!(arr[1], crate::Value::Int(4));
+        } else {
+            panic!("should be array")
+        }
     }
 }

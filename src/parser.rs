@@ -29,6 +29,7 @@ pub grammar arithmetic() for str {
     rule bool() -> &'input str = quiet!{$("true" / "false")} /expected!("Boolean")
     rule _ = quiet!{[' ' | '\n']*}
     rule plus() = _ ("+"/ "plus")  _
+    rule times() = _ ("*"/ "times")  _
     rule minus() = _ ("-" /"minus") _
     rule modulo() = _ ("%" / "mod") _
     rule and() = _ ("&&" / "and") _
@@ -173,7 +174,10 @@ pub grammar arithmetic() for str {
                 }
             }
         }
-
+        --
+        x:(@) times() y:@ {
+            Expression::Operation(Operation::Times(Box::new(x), Box::new(y)))
+        }
         --
            _ v:varUnary(stmts) _ "in" _ a:(array(stmts) / varUnary(stmts)) {
             Expression::Function("in".to_string(),vec![v,a])
@@ -969,7 +973,7 @@ mod tests {
                 }
             }
         });
-        println!("{}", logic.to_string());
+        println!("{}", logic);
     }
 }
 
@@ -983,7 +987,7 @@ macro_rules! to_json_logic {
             .strip_suffix("}")
             .unwrap();
         let block_string = block_string.replace("== =", "===");
-        crate::arithmetic::expression(&block_string)
+        $crate::arithmetic::expression(&block_string)
             .unwrap()
             .to_json_logic()
     }};

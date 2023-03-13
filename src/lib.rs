@@ -98,10 +98,13 @@ impl From<&serde_json::Value> for Value {
 
 impl Expression {
     pub fn as_bool(&self) -> Result<bool, String> {
-        if let Expression::Atomic(Value::Bool(b)) = self {
-            Ok(*b)
-        } else {
-            Err(String::from("Not a bool"))
+        match self {
+            Expression::Atomic(Value::Bool(b)) => Ok(*b),
+            Expression::Atomic(Value::Array(b)) => Ok(!b.is_empty()),
+            Expression::Atomic(Value::String(b)) => Ok(!b.is_empty()),
+            Expression::Atomic(Value::Int(0)) => Ok(false),
+            Expression::Atomic(Value::Object(_)) => Ok(true),
+            _ => Ok(false),
         }
     }
     pub fn eval(&self, data: &serde_json::Value) -> Result<Expression, String> {
@@ -122,7 +125,7 @@ impl Expression {
             }
             Expression::Not(expr) => {
                 let bool_expr = expr.eval(data)?.as_bool()?;
-                Ok(Expression::Atomic(Value::Bool(bool_expr)))
+                Ok(Expression::Atomic(Value::Bool(!bool_expr)))
             }
             Expression::Var(key) => {
                 if let Some(val) = get(data, key) {
@@ -143,7 +146,25 @@ impl Expression {
             Expression::Atomic(_) => Ok(self.to_owned()),
             Expression::TimeInterval(amount, unit) => {
                 let amount = amount.eval(data)?;
-                Ok(Expression::TimeInterval(Box::new(amount), unit.to_owned()))
+                let value_in_seconds = match unit.as_str() {
+                    "hour" | "hours" => Operation::Times(
+                        Box::new(Expression::Atomic(Value::Int(3600))),
+                        Box::new(amount.clone()),
+                    )
+                    .eval(data)?,
+                    "minute" | "minutes" => Operation::Times(
+                        Box::new(Expression::Atomic(Value::Int(60))),
+                        Box::new(amount.clone()),
+                    )
+                    .eval(data)?,
+                    "day" | "days" => Operation::Times(
+                        Box::new(Expression::Atomic(Value::Int(86400))),
+                        Box::new(amount.clone()),
+                    )
+                    .eval(data)?,
+                    _ => amount,
+                };
+                Ok(value_in_seconds)
             }
             Expression::Array(arr) => {
                 let mut new_array = vec![];
@@ -312,6 +333,7 @@ pub enum Value {
     Float(f64),
     Array(Vec<Value>),
     Object(HashMap<String, Value>),
+    TemporalAmount(i128),
     Null,
 }
 
@@ -563,6 +585,7 @@ impl Comparison {
 }
 #[derive(Clone, PartialEq, Debug)]
 pub enum Operation {
+    Times(Box<Expression>, Box<Expression>),
     Plus(Box<Expression>, Box<Expression>),
     Minus(Box<Expression>, Box<Expression>),
     PlusTime(Box<Expression>, Box<Expression>),
@@ -576,6 +599,7 @@ impl std::fmt::Display for Operation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Operation::Plus(_, _) => f.write_str("+"),
+            Operation::Times(_, _) => f.write_str("*"),
             Operation::Minus(_, _) => f.write_str("-"),
             Operation::PlusTime(_, _) => f.write_str("plusTime"),
             Operation::MinusTime(_, _) => f.write_str("minusTime"),
@@ -586,34 +610,74 @@ impl std::fmt::Display for Operation {
     }
 }
 
+fn apply_operation(
+    left: &Expression,
+    right: &Expression,
+    data: &serde_json::Value,
+    op: fn(left: i128, right: i128) -> i128,
+) -> Result<Expression, String> {
+    let left = left.eval(data)?;
+    let right = right.eval(data)?;
+    match (left, right) {
+        (Expression::Atomic(Value::Int(left)), Expression::Atomic(Value::Int(right))) => {
+            Ok(Expression::Atomic(Value::Int(op(left, right))))
+        }
+        (Expression::Atomic(Value::Float(left)), Expression::Atomic(Value::Int(right))) => {
+            Ok(Expression::Atomic(Value::Int(op(left as i128, right))))
+        }
+        (Expression::Atomic(Value::Int(left)), Expression::Atomic(Value::Float(right))) => Ok(
+            Expression::Atomic(Value::Int(op(left as i128, right as i128))),
+        ),
+        (Expression::Atomic(Value::Float(left)), Expression::Atomic(Value::Float(right))) => Ok(
+            Expression::Atomic(Value::Int(op(left as i128, right as i128))),
+        ),
+        _ => todo! {},
+    }
+}
+
 impl Operation {
     pub fn eval(&self, data: &serde_json::Value) -> Result<Expression, String> {
         match self {
-            Operation::Plus(_, _) => todo!(),
-            Operation::Minus(_, _) => todo!(),
-            Operation::PlusTime(_, _) => todo!(),
-            Operation::MinusTime(_, _) => todo!(),
-            Operation::And(_, _) => todo!(),
-            Operation::Or(_, _) => todo!(),
-            Operation::Modulo(left, right) => {
+            Operation::Plus(left, right) => apply_operation(
+                &left.eval(data)?,
+                &right.eval(data)?,
+                data,
+                |left, right| left + right,
+            ),
+            Operation::Minus(left, right) => apply_operation(
+                &left.eval(data)?,
+                &right.eval(data)?,
+                data,
+                |left, right| left - right,
+            ),
+            Operation::Times(left, right) => apply_operation(
+                &left.eval(data)?,
+                &right.eval(data)?,
+                data,
+                |left, right| left * right,
+            ),
+            Operation::PlusTime(left, right) => todo!(),
+            Operation::MinusTime(left, right) => todo!(),
+            Operation::And(left, right) => {
                 let left = left.eval(data)?;
                 let right = right.eval(data)?;
-                match (left, right) {
-                    (
-                        Expression::Atomic(Value::Int(left)),
-                        Expression::Atomic(Value::Int(right)),
-                    ) => Ok(Expression::Atomic(Value::Int(left % right))),
-                    (
-                        Expression::Atomic(Value::Float(left)),
-                        Expression::Atomic(Value::Int(right)),
-                    ) => Ok(Expression::Atomic(Value::Int(left as i128 % right))),
-                    (
-                        Expression::Atomic(Value::Int(left)),
-                        Expression::Atomic(Value::Float(right)),
-                    ) => Ok(Expression::Atomic(Value::Int(left as i128 % right as i128))),
-                    _ => todo! {},
-                }
+                Ok(Expression::Atomic(Value::Bool(
+                    left.as_bool()? && right.as_bool()?,
+                )))
             }
+            Operation::Or(left, right) => {
+                let left = left.eval(data)?;
+                let right = right.eval(data)?;
+                Ok(Expression::Atomic(Value::Bool(
+                    left.as_bool()? || right.as_bool()?,
+                )))
+            }
+            Operation::Modulo(left, right) => apply_operation(
+                &left.eval(data)?,
+                &right.eval(data)?,
+                data,
+                |left, right| left % right,
+            ),
         }
     }
     fn extract_inner_if_same<'other>(
@@ -639,7 +703,8 @@ impl Operation {
             | Operation::Minus(a, b)
             | Operation::And(a, b)
             | Operation::Or(a, b)
-            | Operation::Modulo(a, b) => {
+            | Operation::Modulo(a, b)
+            | Operation::Times(a, b) => {
                 let mut args = vec![];
                 self.extract_inner_if_same(a, &mut args);
                 self.extract_inner_if_same(b, &mut args);
@@ -672,6 +737,94 @@ mod tests {
     use serde_json::json;
 
     use crate::Expression;
+    #[test]
+    fn test_basic_operation() {
+        let plus = super::arithmetic::expression("3 + 7")
+            .unwrap()
+            .eval(&json!({}))
+            .unwrap();
+        assert_eq!(plus, Expression::Atomic(super::Value::Int(10)));
+
+          let plus = super::arithmetic::expression("first + second")
+            .unwrap()
+            .eval(&json!({
+                "first" : 3,
+                "second" : 7
+            }))
+            .unwrap();
+        assert_eq!(plus, Expression::Atomic(super::Value::Int(10)));
+
+        let plus = super::arithmetic::expression("3 - 7")
+            .unwrap()
+            .eval(&json!({}))
+            .unwrap();
+        assert_eq!(plus, Expression::Atomic(super::Value::Int(-4)));
+        let plus = super::arithmetic::expression("3 * 7")
+            .unwrap()
+            .eval(&json!({}))
+            .unwrap();
+        assert_eq!(plus, Expression::Atomic(super::Value::Int(21)));
+        let plus = super::arithmetic::expression("3 % 7")
+            .unwrap()
+            .eval(&json!({}))
+            .unwrap();
+        assert_eq!(plus, Expression::Atomic(super::Value::Int(3)));
+
+
+        let plus = super::arithmetic::expression("true and false")
+            .unwrap()
+            .eval(&json!({}))
+            .unwrap();
+        assert_eq!(plus, Expression::Atomic(super::Value::Bool(false)));
+        let plus = super::arithmetic::expression("true and true")
+            .unwrap()
+            .eval(&json!({}))
+            .unwrap();
+        assert_eq!(plus, Expression::Atomic(super::Value::Bool(true)));
+        let plus = super::arithmetic::expression("false and true")
+            .unwrap()
+            .eval(&json!({}))
+            .unwrap();
+        assert_eq!(plus, Expression::Atomic(super::Value::Bool(false)));
+        let plus = super::arithmetic::expression("false and false")
+            .unwrap()
+            .eval(&json!({}))
+            .unwrap();
+        assert_eq!(plus, Expression::Atomic(super::Value::Bool(false)));
+
+        let plus = super::arithmetic::expression("true || false").unwrap();
+        let plus = plus.eval(&json!({})).unwrap();
+        assert_eq!(plus, Expression::Atomic(super::Value::Bool(true)));
+        let plus = super::arithmetic::expression("true or true")
+            .unwrap()
+            .eval(&json!({}))
+            .unwrap();
+        assert_eq!(plus, Expression::Atomic(super::Value::Bool(true)));
+        let plus = super::arithmetic::expression("false or true")
+            .unwrap()
+            .eval(&json!({}))
+            .unwrap();
+        assert_eq!(plus, Expression::Atomic(super::Value::Bool(true)));
+        let plus = super::arithmetic::expression("false or false")
+            .unwrap()
+            .eval(&json!({}))
+            .unwrap();
+        assert_eq!(plus, Expression::Atomic(super::Value::Bool(false)));
+    }
+
+    #[test]
+    fn test_truthy() {
+        let test = super::arithmetic::expression("a && true")
+            .unwrap()
+            .eval(&json!({"a" : {}}))
+            .unwrap();
+        println!("{:?}", test);
+          let test = super::arithmetic::expression("a && true")
+            .unwrap()
+            .eval(&json!({"a" : []}))
+            .unwrap();
+        println!("{:?}", test);
+    }
 
     #[test]
     fn test_eval() {

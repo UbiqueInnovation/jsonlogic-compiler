@@ -52,10 +52,12 @@ fn get(value: &serde_json::Value, path: &str) -> Option<Expression> {
         return Some(Expression::Atomic(Value::from(value)));
     }
     let splits = path.split('.');
+    let mut value = value.to_owned();
     let mut expression = Expression::Atomic(Value::Null);
     for s in splits {
         if let Some(a) = value.get(s) {
             expression = Expression::Atomic(Value::from(a));
+            value = a.to_owned();
         } else {
             return None;
         }
@@ -736,7 +738,7 @@ mod tests {
 
     use serde_json::json;
 
-    use crate::Expression;
+    use crate::{Expression, get};
     #[test]
     fn test_basic_operation() {
         let plus = super::arithmetic::expression("3 + 7")
@@ -745,7 +747,7 @@ mod tests {
             .unwrap();
         assert_eq!(plus, Expression::Atomic(super::Value::Int(10)));
 
-          let plus = super::arithmetic::expression("first + second")
+        let plus = super::arithmetic::expression("first + second")
             .unwrap()
             .eval(&json!({
                 "first" : 3,
@@ -769,7 +771,6 @@ mod tests {
             .eval(&json!({}))
             .unwrap();
         assert_eq!(plus, Expression::Atomic(super::Value::Int(3)));
-
 
         let plus = super::arithmetic::expression("true and false")
             .unwrap()
@@ -819,7 +820,7 @@ mod tests {
             .eval(&json!({"a" : {}}))
             .unwrap();
         println!("{:?}", test);
-          let test = super::arithmetic::expression("a && true")
+        let test = super::arithmetic::expression("a && true")
             .unwrap()
             .eval(&json!({"a" : []}))
             .unwrap();
@@ -867,5 +868,15 @@ mod tests {
         } else {
             panic!("should be array")
         }
+    }
+    #[test] 
+    fn test_json_path() {
+        let j = json!( {
+            "a" : {
+                "b": true
+            }
+        });
+        assert_eq!(get(&j, "a.b").unwrap().to_json_logic(), serde_json::Value::Bool(true));
+       
     }
 }

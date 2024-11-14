@@ -8,6 +8,6 @@ name = "jlc"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-jsonlogic = {version = "0.5.4", git = "https://github.com/ubamrein/jsonlogic_rs.git"}
-peg = {version = "0.8.0"}
+jsonlogic = { version = "0.5.4", git = "https://github.com/ubamrein/jsonlogic_rs.git" }
+peg = { version = "0.8.0" }
 serde_json = "1.0.64"

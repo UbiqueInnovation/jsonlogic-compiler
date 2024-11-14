@@ -301,6 +301,29 @@ checksum = "dd25036021b0de88a0aff6b850051563c6516d0bf53f8638938edbb9de732736"
 
 [[package]]
 name = "jlc"
+version = "0.1.0"
+dependencies = [
+ "bardecoder",
+ "base64",
+ "console_error_panic_hook",
+ "flate2",
+ "futures",
+ "image",
+ "jlc 0.2.0",
+ "js-sys",
+ "jsonlogic",
+ "log",
+ "qrcode",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+ "wee_alloc",
+]
+
+[[package]]
+name = "jlc"
 version = "0.2.0"
 dependencies = [
  "jsonlogic",
@@ -573,29 +596,6 @@ dependencies = [
  "crossbeam-utils",
  "lazy_static",
  "num_cpus",
-]
-
-[[package]]
-name = "rust-webpack-template"
-version = "0.1.0"
-dependencies = [
- "bardecoder",
- "base64",
- "console_error_panic_hook",
- "flate2",
- "futures",
- "image",
- "jlc",
- "js-sys",
- "jsonlogic",
- "log",
- "qrcode",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-bindgen-test",
- "web-sys",
- "wee_alloc",
 ]
 
 [[package]]

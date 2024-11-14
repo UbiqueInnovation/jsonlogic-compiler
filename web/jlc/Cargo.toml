@@ -1,9 +1,9 @@
 # You must change these to your own details.
 [package]
-name = "rust-webpack-template"
-description = "My super awesome Rust, WebAssembly, and Webpack project!"
+name = "jlc"
+description = "Compile and evaluate logic"
 version = "0.1.0"
-authors = ["You <you@example.com>"]
+authors = ["Patrick Amrein <amrein@ubique.ch>"]
 categories = ["wasm"]
 readme = "README.md"
 edition = "2018"
@@ -27,18 +27,20 @@ wasm-opt = false
 # to interact with JavaScript.
 wasm-bindgen = "0.2.45"
 
-jlc = {version = "*", path = "../../"}
+jlc = { version = "*", path = "../../" }
 # `wee_alloc` is a tiny allocator for wasm that is only ~1K in code size
 # compared to the default allocator's ~10K. However, it is slower than the default
 # allocator, so it's not enabled by default.
 wee_alloc = { version = "0.4.2", optional = true }
-jsonlogic = {version = "0.5.4", git = "https://github.com/ubamrein/jsonlogic_rs.git"}
+jsonlogic = { version = "0.5.4", git = "https://github.com/ubamrein/jsonlogic_rs.git" }
 serde_json = "1.0.64"
 qrcode = "0.12.0"
 image = "0.23.14"
 bardecoder = "0.3.0"
 base64 = "0.13.0"
-flate2 = {version = "1.0.20", default-features =false, features = ["rust_backend"]}
+flate2 = { version = "1.0.20", default-features = false, features = [
+    "rust_backend",
+] }
 log = "0.4.14"
 
 # The `web-sys` crate allows you to interact with the various browser APIs,

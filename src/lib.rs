@@ -34,8 +34,8 @@ pub enum Expression {
         other: Option<Box<Expression>>,
     },
     Not(Box<Expression>),
-    Var(String),
-    VarWithDefault(String, Box<Expression>),
+    Var(Vec<String>),
+    VarWithDefault(Vec<String>, Box<Expression>),
     Operation(Operation),
     Comparison(Comparison),
     Atomic(Value),
@@ -47,14 +47,15 @@ pub enum Expression {
     Comment(String),
 }
 
-fn get(value: &serde_json::Value, path: &str) -> Option<Expression> {
-    if path.is_empty() {
-        return Some(Expression::Atomic(Value::from(value)));
+fn get(orig_value: &serde_json::Value, path: &Vec<String>) -> Option<Expression> {
+    if path.is_empty() || path[0].is_empty() {
+        return Some(Expression::Atomic(Value::from(orig_value)));
     }
-    let splits = path.split('.');
-    let mut value = value.to_owned();
+
+    println!("{:?}", path);
+    let mut value = orig_value.to_owned();
     let mut expression = Expression::Atomic(Value::Null);
-    for s in splits {
+    for s in path {
         if let Some(a) = value.get(s) {
             expression = Expression::Atomic(Value::from(a));
             value = a.to_owned();
@@ -256,11 +257,11 @@ impl Expression {
                 }
             }
             Expression::Var(v) => {
-                json!({ "var": v })
+                json!({ "var": v.join(".").to_string() })
             }
             Expression::VarWithDefault(v, fall_back) => {
                 let value = fall_back.to_json_logic();
-                json!({"var" : [v, value] })
+                json!({"var" : [v.join(".").to_string(), value] })
             }
             Expression::Operation(a) => a.to_json_logic(),
             Expression::Not(i) => {
@@ -738,7 +739,7 @@ mod tests {
 
     use serde_json::json;
 
-    use crate::{Expression, get};
+    use crate::{get, Expression};
     #[test]
     fn test_basic_operation() {
         let plus = super::arithmetic::expression("3 + 7")
@@ -869,14 +870,18 @@ mod tests {
             panic!("should be array")
         }
     }
-    #[test] 
+    #[test]
     fn test_json_path() {
         let j = json!( {
             "a" : {
                 "b": true
             }
         });
-        assert_eq!(get(&j, "a.b").unwrap().to_json_logic(), serde_json::Value::Bool(true));
-       
+        assert_eq!(
+            get(&j, &vec!["a".to_owned(), "b".to_owned()])
+                .unwrap()
+                .to_json_logic(),
+            serde_json::Value::Bool(true)
+        );
     }
 }

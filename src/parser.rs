@@ -10,7 +10,21 @@ use std::sync::{Arc, Mutex};
 parser! {
 /// Doc comment
 pub grammar arithmetic() for str {
-    rule var() -> &'input str = quiet!{$(!keyword() ['a'..='z' | 'A'..='Z']+[ '.' | 'a'..='z' | 'A'..='Z' |'0'..='9' | '_' |'-']*)}/expected!("Variable")
+    rule quoted_part() -> &'input str = "." "\"" s:string() "\"" {
+        s
+        }
+    rule pointed_part() -> &'input str = "." p:part() {
+        p
+    }
+    rule part() -> &'input str = quiet!{$(!keyword() ['a'..='z' | 'A'..='Z'| '0'..='9' | '_' |'-']+)}/expected!("Variable")
+    rule path() -> Vec<&'input str> =  first:$(['a'..='z' | 'A'..='Z' ]+['a'..='z' | 'A'..='Z'| '0'..='9' | '_' |'-']*)rest:(quoted_part() / pointed_part())* {
+        let mut r = rest.clone();
+        r.insert(0, first);
+        r
+    }
+    rule var() -> Vec<String> = !keyword() p:path() {
+        p.iter().map(|a| a.to_string()).collect::<_>()
+    }
     rule var_checked(stmts: &Arc<Mutex<Vec<Statement>>>, offset: usize)-> &'input str =  var_name:$(!keyword() quiet!{['a'..='z' | 'A'..='Z']+[ '.' | 'a'..='z' | 'A'..='Z' |'0'..='9' | '_' |'-']*}) {?
         if is_defined(stmts, var_name, Some(offset)) {
             Err("variable already defined")
@@ -78,10 +92,10 @@ pub grammar arithmetic() for str {
         x:(@) after() y:@ { Expression::Comparison(Comparison::After(Box::new(x), Box::new(y))) }
         x:(@) notAfter() y:@ { Expression::Comparison(Comparison::NotAfter(Box::new(x), Box::new(y))) }
         --
-        _ now() _ {Expression::Var("external.validationClock".to_owned())}
+        _ now() _ {Expression::Var(vec!["external.validationClock".to_owned()])}
         _ now() _ "as DateTime" _ {
             let unit = Expression::TimeInterval(Box::new(Expression::Atomic(Value::Int(0))), "day".to_string());
-             Expression::Operation(Operation::PlusTime(Box::new(Expression::Var("external.validationClock".to_owned())), Box::new(unit)))
+             Expression::Operation(Operation::PlusTime(Box::new(Expression::Var(vec!["external.validationClock".to_owned()])), Box::new(unit)))
         }
         --
          x:(@) or() y:@ {
@@ -99,7 +113,7 @@ pub grammar arithmetic() for str {
         _ v:var() l:time_interval() _ {
             let l = l.trim().strip_prefix('#').unwrap();
             let l = if let Some(l) = l.strip_suffix('s') { l } else { l };
-            let ex =  replace_variable(stmts, v, Expression::Var(v.to_owned()));
+            let ex =  replace_variable(stmts, v.join(".").as_str(), Expression::Var(v));
             Expression::TimeInterval(Box::new(ex), l.trim().to_owned())
         }
         _ v:number() l:time_interval() {
@@ -119,23 +133,23 @@ pub grammar arithmetic() for str {
         }
         --
         _ v:var() _ "as DateTime" _ {
-            replace_variable(stmts, v, Expression::Var(v.to_owned()))
+            replace_variable(stmts, v.join(".").as_str(), Expression::Var(v))
         }
         --
         _ "(" _ e:expression_with_level(stmts) _ ")" _ { e }
     }
 
     rule booleanCast(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ v:var() _ "as Boolean" _ {
-        let ex =  replace_variable(stmts, v, Expression::Var(v.to_owned()));
+        let ex =  replace_variable(stmts, v.join(".").as_str(), Expression::Var(v));
         Expression::Not(Box::new(Expression::Not(Box::new(ex))))
     }
 
     rule operation(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = precedence!{
         v:var() null_coercion() e:expression_with_level(stmts) {
-            if is_defined(stmts, v, None) {
-                replace_variable(stmts, v, Expression::Var(v.to_owned()))
+            if is_defined(stmts, v.join(".").as_str(), None) {
+                replace_variable(stmts, v.join(".").as_str(), Expression::Var(v))
             } else {
-                Expression::VarWithDefault(v.to_owned(),Box::new(e))
+                Expression::VarWithDefault(v,Box::new(e))
             }
         }
         --
@@ -205,7 +219,7 @@ pub grammar arithmetic() for str {
         _ l:bool() _ {Expression::Atomic(Value::Bool(l.parse::<bool>().unwrap()))}
         --
         _ v:var() _ {
-            replace_variable(stmts, v,  Expression::Var(v.to_owned()))
+            replace_variable(stmts, v.join(".").as_str(),  Expression::Var(v.to_owned()))
         }
         --
         _ f:float() _ {Expression::Atomic(Value::Float(f.parse::<f64>().unwrap()))}
@@ -270,7 +284,7 @@ pub grammar arithmetic() for str {
         Expression::Conditional{condition: Box::new(e), inner: Box::new(i), other: Some(Box::new(o))}
     }
     rule unary(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ now() _ {
-        Expression::Var("external.validationClock".to_owned())
+        Expression::Var(vec!["external.validationClock".to_owned()])
     }
 
     rule keyword() = "if"/"switch"/"else"/"this"/ "true" / "false"
@@ -278,26 +292,27 @@ pub grammar arithmetic() for str {
     rule array(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression =  _ "[" _ e:expression_with_level(stmts)** "," _ "]" _ { Expression::Array(e)}
 
     rule varUnary(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ v:var() _ {
-        replace_variable(stmts, v, Expression::Var(v.to_owned()))
+        replace_variable(stmts, v.join(".").as_str(), Expression::Var(v.to_owned()))
     }
 
     rule arrayOperation(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ expr:(array(stmts) / varUnary(stmts)) _ "::" _ function:var() _ "{" _ inner:expression_with_level(stmts) _"}" {
-        Expression::ArrayOperation(Box::new(expr), function.to_owned(), Box::new(inner))
+        Expression::ArrayOperation(Box::new(expr), function.join(".").as_str().to_owned(), Box::new(inner))
     }
       rule arrayOperationWithArguments(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ expr:(array(stmts) / varUnary(stmts)) _ "::" _ function:var() _ "(" args:expression_with_level(stmts)** "," _ ")" _ "{" _ inner:expression_with_level(stmts) _"}" {
-        Expression::ArrayOperationWithArguments(Box::new(expr), function.to_owned(), Box::new(inner), args)
+        Expression::ArrayOperationWithArguments(Box::new(expr), function.join(".").as_str().to_owned(), Box::new(inner), args)
     }
     rule booleanExpression(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = b:bool() {
         Expression::Atomic(Value::Bool(b.parse().unwrap()))
     }
-    rule this() -> Expression = _ quiet!{"this"} _ {Expression::Var("".to_owned())}
+    rule this() -> Expression = _ quiet!{"this"} _ {Expression::Var(vec!["".to_owned()])}
     rule function(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ (!keyword()) func_name:var() _ "(" _ args:expression_with_level(stmts)++ "," _ ")" _ {
-        match func_name {
+        let func_name = func_name.join(".").to_owned();
+        match func_name.as_str() {
             "min" => {
 
                 match args.len() {
                     0 => {
-                         Expression::Function(func_name.to_owned(), args)
+                         Expression::Function(func_name, args)
                     },
                     1 => {
                         args[0].clone()
@@ -535,9 +550,9 @@ mod tests {
         if (a == "test") {
             let a = test;
             a
-        } else { 
+        } else {
             let a = a;
-            undefined 
+            undefined
         }"#;
         let logic = super::arithmetic::expression(logic).unwrap_err();
         let output = format!("{:?}", logic);
@@ -550,11 +565,33 @@ mod tests {
         if (a == "test") {
             let a = test;
             a
-        } else { 
+        } else {
             let a = test;
-            undefined 
+            undefined
         }"#;
         let logic = super::arithmetic::expression(logic).unwrap();
+        println!("{:?}", logic);
+    }
+
+    #[test]
+    fn test_jsonpath() {
+        let logic = r#"
+if(payload."$['trest.a'][]" == 1) {
+    true
+} else {
+    false
+}
+            "#;
+        let logic = super::arithmetic::expression(logic).unwrap();
+        println!("{:?}", logic);
+        let result = logic
+            .eval(&json!({
+                "payload" : {
+                    "$['trest.a'][]": 1
+                }
+            }))
+            .unwrap();
+        assert_eq!(result.as_bool().unwrap(), true);
         println!("{:?}", logic);
     }
 
@@ -566,9 +603,9 @@ mod tests {
             let a = test;
             let a = test;
             a
-        } else { 
+        } else {
             let a = test;
-            undefined 
+            undefined
         }"#;
         let logic = super::arithmetic::expression(logic).unwrap_err();
         let output = format!("{:?}", logic);
@@ -629,6 +666,7 @@ mod tests {
             }
         });
         let logic = expression.to_json_logic();
+        println!("{logic}");
         assert!(jsonlogic::apply(&logic, &mp_a).unwrap().as_bool().unwrap());
         assert!(jsonlogic::apply(&logic, &mp_b).unwrap().as_bool().unwrap());
         // this should be false
@@ -743,11 +781,11 @@ mod tests {
             "test" => {
                 b
             }
-            
+
             "other" => {
                 c
             }
-           
+
             "third" => {
                 d
             }

@@ -1,4 +1,4 @@
-use std::io::{Write, Read};
+use std::io::{Read, Write};
 
 use flate2::Compression;
 use image::{DynamicImage, ImageFormat};
@@ -23,6 +23,23 @@ extern "C" {
 pub fn get_json_logic(normal: String) -> String {
     match expression(&normal) {
         Ok(exp) => exp.to_string(),
+        Err(err) => format!("{:#?}", err),
+    }
+}
+
+#[wasm_bindgen]
+pub fn evaluate_aifc(normal: String, data: String) -> String {
+    let exp = match expression(&normal) {
+        Ok(exp) => exp,
+        Err(err) => return format!("{:#?}", err),
+    };
+    let data: serde_json::Value = match serde_json::from_str(&data) {
+        Ok(t) => t,
+        Err(err) => return format!("{:#?}", err),
+    };
+
+    match exp.eval(&data) {
+        Ok(e) => e.to_string(),
         Err(err) => format!("{:#?}", err),
     }
 }
@@ -62,7 +79,9 @@ fn create_qr_code(payload: &str) -> Vec<u8> {
     encoder.write_all(data).unwrap();
     encoder.finish().unwrap();
 
-    let code = QrCode::with_error_correction_level(&base64::encode(&compressed_data), qrcode::EcLevel::L).unwrap();
+    let code =
+        QrCode::with_error_correction_level(&base64::encode(&compressed_data), qrcode::EcLevel::L)
+            .unwrap();
 
     let image = code.render::<Luma<u8>>().build();
     let image = DynamicImage::ImageLuma8(image);
@@ -76,12 +95,14 @@ fn decode_qr_code(payload: &[u8]) -> String {
     // Use default decoder
     let decoder = bardecoder::default_builder().build();
     let results = decoder.decode(&img);
-   
+
     let res = results[0].as_ref().expect("No data found");
     let mut decompressed_data = vec![];
 
     let res = base64::decode(res).unwrap();
     let mut decoder = flate2::read::DeflateDecoder::new(&res[..]);
-    decoder.read_to_end(&mut decompressed_data).expect("Could not decompress");
+    decoder
+        .read_to_end(&mut decompressed_data)
+        .expect("Could not decompress");
     String::from_utf8(decompressed_data).unwrap()
 }

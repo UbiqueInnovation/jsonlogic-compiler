@@ -28,6 +28,13 @@ pub fn get_json_logic(normal: String) -> String {
 }
 
 #[wasm_bindgen]
+pub fn validate_logic(normal: String) -> Result<bool, JsValue> {
+    expression(&normal)
+        .map(|_| true)
+        .map_err(|e| format!("{}", e).into())
+}
+
+#[wasm_bindgen]
 pub fn evaluate_aifc(normal: String, data: String) -> String {
     let exp = match expression(&normal) {
         Ok(exp) => exp,

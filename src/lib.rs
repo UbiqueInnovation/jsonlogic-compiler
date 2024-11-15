@@ -52,16 +52,24 @@ fn get(orig_value: &serde_json::Value, path: &Vec<String>) -> Option<Expression>
         return Some(Expression::Atomic(Value::from(orig_value)));
     }
 
-    println!("{:?}", path);
     let mut value = orig_value.to_owned();
     let mut expression = Expression::Atomic(Value::Null);
     for s in path {
-        if let Some(a) = value.get(s) {
-            expression = Expression::Atomic(Value::from(a));
-            value = a.to_owned();
+        if let Ok(index) = s.parse::<usize>() {
+            if let Some(a) = value.as_array().and_then(|a| a.get(index)) {
+                expression = Expression::Atomic(Value::from(a));
+                value = a.to_owned();
+            } else {
+                return None;
+            }
         } else {
-            return None;
-        }
+            if let Some(a) = value.get(s) {
+                expression = Expression::Atomic(Value::from(a));
+                value = a.to_owned();
+            } else {
+                return None;
+            }
+        };
     }
     Some(expression)
 }

@@ -212,10 +212,44 @@ impl Expression {
             }
             Expression::ArrayOperationWithArguments(..) => todo! {},
             Expression::Function(function_name, arguments) => match function_name.as_str() {
+                "startsWith" => {
+                    if !arguments.len() == 2 {
+                        return Err(format!(
+                            "In function needs two arguments. {} were given",
+                            arguments.len()
+                        ));
+                    }
+                    let haystack = arguments[0].eval(data)?;
+                    let needle = arguments[1].eval(data)?;
+                    match (&haystack, &needle) {
+                        (
+                            Expression::Atomic(Value::String(h)),
+                            Expression::Atomic(Value::String(n)),
+                        ) => Ok(Self::Atomic(Value::Bool(h.starts_with(n)))),
+                        _ => Err(format!("Cannot compare {:?} with {:?}", haystack, needle)),
+                    }
+                }
+                "contains" => {
+                    if !arguments.len() == 2 {
+                        return Err(format!(
+                            "In function needs two arguments. {} were given",
+                            arguments.len()
+                        ));
+                    }
+                    let haystack = arguments[0].eval(data)?;
+                    let needle = arguments[1].eval(data)?;
+                    match (&haystack, &needle) {
+                        (
+                            Expression::Atomic(Value::String(h)),
+                            Expression::Atomic(Value::String(n)),
+                        ) => Ok(Self::Atomic(Value::Bool(h.contains(n)))),
+                        _ => Err(format!("Cannot compare {:?} with {:?}", haystack, needle)),
+                    }
+                }
                 "in" => {
                     if !arguments.len() == 2 {
                         return Err(format!(
-                            "In function needs to arguments. {} were given",
+                            "In function needs two arguments. {} were given",
                             arguments.len()
                         ));
                     }

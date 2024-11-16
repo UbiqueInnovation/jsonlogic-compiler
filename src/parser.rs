@@ -295,16 +295,23 @@ pub grammar arithmetic() for str {
         replace_variable(stmts, v.join(".").as_str(), Expression::Var(v.to_owned()))
     }
 
-    rule arrayOperation(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ expr:(array(stmts) / varUnary(stmts)) _ "::" _ function:var() _ "{" _ inner:expression_with_level(stmts) _"}" {
+    rule arrayOperation(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ (!varOperation(stmts)) expr:(array(stmts) / varUnary(stmts)) _ "::" _ function:var() _ "{" _ inner:expression_with_level(stmts) _"}" {
         Expression::ArrayOperation(Box::new(expr), function.join(".").as_str().to_owned(), Box::new(inner))
     }
-      rule arrayOperationWithArguments(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ expr:(array(stmts) / varUnary(stmts)) _ "::" _ function:var() _ "(" args:expression_with_level(stmts)** "," _ ")" _ "{" _ inner:expression_with_level(stmts) _"}" {
+      rule arrayOperationWithArguments(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ (!varOperation(stmts)) expr:(array(stmts) / varUnary(stmts)) _ "::" _ function:var() _ "(" args:expression_with_level(stmts)** "," _ ")" _ "{" _ inner:expression_with_level(stmts) _"}" {
         Expression::ArrayOperationWithArguments(Box::new(expr), function.join(".").as_str().to_owned(), Box::new(inner), args)
     }
     rule booleanExpression(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = b:bool() {
         Expression::Atomic(Value::Bool(b.parse().unwrap()))
     }
     rule this() -> Expression = _ quiet!{"this"} _ {Expression::Var(vec!["".to_owned()])}
+    rule varOperation(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ v:var() _ ":" _ f:function(stmts) {
+        let Expression::Function(name, mut args) = f else {
+            panic!("")
+        };
+        args.insert(0, Expression::Var(v));
+        Expression::Function(name, args)
+    }
     rule function(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ (!keyword()) func_name:var() _ "(" _ args:expression_with_level(stmts)++ "," _ ")" _ {
         let func_name = func_name.join(".").to_owned();
         match func_name.as_str() {
@@ -574,13 +581,26 @@ mod tests {
     }
 
     #[test]
+    fn string_operations() {
+        let logic = r#"contains(input, "yes") and startsWith(input, "yes")"#;
+        let logic = super::arithmetic::expression(logic).unwrap();
+        println!("{:?}", logic);
+        let result = logic
+            .eval(&json!({
+                "input" : "yes sir"
+            }))
+            .unwrap();
+        assert_eq!(result.as_bool().unwrap(), true);
+    }
+
+    #[test]
     fn test_jsonpath() {
         let logic = r#"
-if(payload."$['trest.a'][]" == 1) {
-    true
-} else {
-    false
-}
+            if(payload."$['trest.a'][]" == 1) {
+                true
+            } else {
+                false
+            }
             "#;
         let logic = super::arithmetic::expression(logic).unwrap();
         println!("{:?}", logic);

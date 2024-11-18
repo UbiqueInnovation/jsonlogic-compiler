@@ -247,7 +247,7 @@ impl Expression {
                     _ => Err("Function not implemented".into()),
                 }
             }
-            Expression::ArrayOperationWithArguments(..) => todo! {},
+            Expression::ArrayOperationWithArguments(..) => Err("Not implemented".to_string()),
             Expression::Function(function_name, arguments) => match function_name.as_str() {
                 "startsWith" => {
                     if !arguments.len() == 2 {
@@ -281,6 +281,14 @@ impl Expression {
                             Expression::Atomic(Value::Int(start)),
                         ) = (&input, &start)
                         {
+                            if s.len() <= *start as usize {
+                                return Err(format!(
+                                    "start index {} is out of bounds {} [{}]",
+                                    start,
+                                    s.len(),
+                                    s
+                                ));
+                            }
                             let slice = &s[*start as usize..];
                             Ok(Expression::Atomic(Value::String(slice.to_string())))
                         } else {
@@ -292,12 +300,24 @@ impl Expression {
                     } else {
                         let start = arguments[1].eval(data)?;
                         let end = arguments[2].eval(data)?;
+
                         if let (
                             Expression::Atomic(Value::String(s)),
                             Expression::Atomic(Value::Int(start)),
                             Expression::Atomic(Value::Int(end)),
                         ) = (&input, &start, &end)
                         {
+                            if s.len() <= *start as usize
+                                || *start as usize >= *end as usize
+                                || s.len() <= *end as usize
+                            {
+                                return Err(format!(
+                                    "start index {} is out of bounds {} [{}]",
+                                    start,
+                                    s.len(),
+                                    s
+                                ));
+                            }
                             let slice = &s[*start as usize..*end as usize];
                             Ok(Expression::Atomic(Value::String(slice.to_string())))
                         } else {
@@ -345,7 +365,7 @@ impl Expression {
                     }
                     Ok(Expression::Atomic(Value::Bool(false)))
                 }
-                _ => todo!("Only in is supported"),
+                _ => Err("Not implemented".to_string()),
             },
             Expression::Comment(_) => Ok(self.to_owned()),
         }
@@ -673,10 +693,10 @@ impl Comparison {
                     _ => Err(format!("cannot compare {:?} {:?}", a, b)),
                 }
             }
-            Comparison::Before(_, _) => todo!(),
-            Comparison::NotBefore(_, _) => todo!(),
-            Comparison::After(_, _) => todo!(),
-            Comparison::NotAfter(_, _) => todo!(),
+            Comparison::Before(_, _) => Err("Not implemented".to_string()),
+            Comparison::NotBefore(_, _) => Err("Not implemented".to_string()),
+            Comparison::After(_, _) => Err("Not implemented".to_string()),
+            Comparison::NotAfter(_, _) => Err("Not implemented".to_string()),
         }
     }
     pub fn to_json_logic(&self) -> serde_json::Value {
@@ -756,7 +776,7 @@ fn apply_operation(
         (Expression::Atomic(Value::Float(left)), Expression::Atomic(Value::Float(right))) => Ok(
             Expression::Atomic(Value::Int(op(left as i128, right as i128))),
         ),
-        _ => todo! {},
+        _ => Err("Not implemented".to_string()),
     }
 }
 
@@ -781,8 +801,8 @@ impl Operation {
                 data,
                 |left, right| left * right,
             ),
-            Operation::PlusTime(_left, _right) => todo!(),
-            Operation::MinusTime(_left, _right) => todo!(),
+            Operation::PlusTime(_left, _right) => Err("Not implemented".to_string()),
+            Operation::MinusTime(_left, _right) => Err("Not implemented".to_string()),
             Operation::And(left, right) => {
                 let left = left.eval(data)?;
                 let right = right.eval(data)?;

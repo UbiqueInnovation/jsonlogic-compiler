@@ -78,7 +78,26 @@ pub grammar arithmetic() for str {
         Import::Path(v.to_string())
     }
 
+    rule as_cast() = _ "as" _
+
+    rule cast(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = precedence!{
+        x:(@) as_cast() ty:var() {
+
+            Expression::Cast(Box::new(x), ty.join("").to_string())
+        }
+        --
+        _ "(" _ e:expression_with_level(stmts) _ ")" _ { e }
+    }
+
     rule timeOperation(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = precedence!{
+        x:@ as_cast() ty:var() {
+            Expression::Cast(Box::new(x), ty.join("").to_string())
+        }
+        --
+        x:(@) as_cast() ty:var() {
+            Expression::Cast(Box::new(x), ty.join("").to_string())
+        }
+        --
           x:(@) plus() y:@ {
             Expression::Operation(Operation::PlusTime(Box::new(x), Box::new(y)))
 
@@ -137,6 +156,9 @@ pub grammar arithmetic() for str {
         }
         --
         _ "(" _ e:expression_with_level(stmts) _ ")" _ { e }
+        x:@ as_cast() ty:var() {
+            Expression::Cast(Box::new(x), ty.join("").to_string())
+        }
     }
 
     rule booleanCast(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ v:var() _ "as Boolean" _ {
@@ -232,6 +254,9 @@ pub grammar arithmetic() for str {
          _ "[" _ e:expression_with_level(stmts)** _ "," _ "]" _ { Expression::Array(e)}
         --
          _ "(" _ e:expression_with_level(stmts) _ ")" _ { e }
+         x:@ as_cast() ty:var() {
+             Expression::Cast(Box::new(x), ty.join("").to_string())
+         }
     }
     rule switch_if(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = _ _ ":" _ "if" second:expression_with_level(stmts) {
         second
@@ -426,7 +451,7 @@ pub grammar arithmetic() for str {
 
     rule statement(stmts: &Arc<Mutex<Vec<Statement>>>)  = _ c:(comment() / variable_assignment(stmts))  _
 
-    rule new_frame(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression =  ((statement(stmts))*) e:(booleanCast(stmts) / (switch(stmts) / expected!("Switch")) / (conditionalWithElse(stmts) / expected!("Conditional with else"))  / ( timeOperation(stmts) / operation(stmts) /expected!("Binary operator"))/ (arrayOperationWithArguments(stmts) / arrayOperation(stmts) / array(stmts)/expected!("Array expression"))  / (unary((stmts)) / function(stmts)/expected!("Function"))) {?
+    rule new_frame(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression =  ((statement(stmts))*) e:(booleanCast(stmts) / (switch(stmts) / expected!("Switch")) / (conditionalWithElse(stmts) / expected!("Conditional with else"))  / (timeOperation(stmts) / operation(stmts) /expected!("Binary operator"))/ (arrayOperationWithArguments(stmts) / arrayOperation(stmts) / array(stmts)/expected!("Array expression"))  / (unary((stmts)) / function(stmts)/expected!("Function"))) {?
         Ok(e)
     }
     rule expression_with_level(stmts: &Arc<Mutex<Vec<Statement>>>) -> Expression = e:new_frame(&new_frame(stmts)) {
@@ -592,7 +617,73 @@ mod tests {
             .unwrap();
         assert_eq!(result.as_bool().unwrap(), true);
     }
+    #[test]
+    fn cast_opperations() {
+        let logic = r#"let integer_cast = "2";
+            if(integer_cast as Integer
+                < (p as Integer)) {
+                true
+            } else {
+                false
+            }
+            "#;
+        let logic = super::arithmetic::expression(logic).unwrap();
+        println!("{:?}", logic);
+        let result = logic
+            .eval(&json!({
+                "p" : "10"
+            }))
+            .unwrap();
+        assert_eq!(result.as_bool().unwrap(), true);
 
+        let logic = r#"let float_cast = "2.0" as Float;
+            if(float_cast
+                < (p as Float)) {
+                true
+            } else {
+                false
+            }
+            "#;
+        let logic = super::arithmetic::expression(logic).unwrap();
+        println!("{:?}", logic);
+        let result = logic
+            .eval(&json!({
+                "p" : "2.1"
+            }))
+            .unwrap();
+        assert_eq!(result.as_bool().unwrap(), true);
+    }
+
+    #[test]
+    fn test_substring() {
+        let logic = r#"let a = "a124";
+            if(substring(a, 2) as Integer > 12) {
+                true
+            } else {
+            false
+            }
+            "#;
+        let logic = super::arithmetic::expression(logic).unwrap();
+        let result = logic.eval(&json!({})).unwrap();
+        assert_eq!(result.as_bool().unwrap(), true);
+
+        let logic = r#"let a = "a124";
+            if(substring(a, 1,3) as Integer <= 12) {
+                true
+            } else {
+            false
+            }
+            "#;
+        let logic = super::arithmetic::expression(logic).unwrap();
+        let result = logic.eval(&json!({})).unwrap();
+        assert_eq!(result.as_bool().unwrap(), true);
+
+        let logic = r#"let a = "a124";
+           substring(a, 1,3) as Integer"#;
+        let logic = super::arithmetic::expression(logic).unwrap();
+        let result = logic.eval(&json!({})).unwrap();
+        assert_eq!(result, Expression::Atomic(crate::Value::Int(12)));
+    }
     #[test]
     fn test_jsonpath() {
         let logic = r#"

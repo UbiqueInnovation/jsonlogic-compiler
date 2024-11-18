@@ -45,6 +45,7 @@ pub enum Expression {
     ArrayOperationWithArguments(Box<Expression>, String, Box<Expression>, Vec<Expression>),
     Function(String, Vec<Expression>),
     Comment(String),
+    Cast(Box<Expression>, String),
 }
 
 fn get(orig_value: &serde_json::Value, path: &Vec<String>) -> Option<Expression> {
@@ -152,6 +153,42 @@ impl Expression {
                     def.eval(data)
                 }
             }
+            Expression::Cast(e, ty) => {
+                let var = e.eval(data)?;
+                match ty.as_str() {
+                    "Integer" => {
+                        if let Expression::Atomic(v) = &var {
+                            match v {
+                                Value::String(s) => match s.parse::<i128>() {
+                                    Ok(n) => Ok(Expression::Atomic(Value::Int(n))),
+                                    _ => Err(format!("cannot cast {:?} to {ty}", var)),
+                                },
+                                Value::Int(i) => Ok(Expression::Atomic(Value::Int(*i))),
+                                Value::Float(f) => Ok(Expression::Atomic(Value::Int(*f as i128))),
+                                _ => Err(format!("cannot cast {:?} to {ty}", var)),
+                            }
+                        } else {
+                            Err(format!("cannot cast {:?} to {ty}", var))
+                        }
+                    }
+                    "Float" => {
+                        if let Expression::Atomic(v) = &var {
+                            match v {
+                                Value::String(s) => match s.parse::<f64>() {
+                                    Ok(n) => Ok(Expression::Atomic(Value::Float(n))),
+                                    _ => Err(format!("cannot cast {:?} to {ty}", var)),
+                                },
+                                Value::Int(i) => Ok(Expression::Atomic(Value::Float(*i as f64))),
+                                Value::Float(f) => Ok(Expression::Atomic(Value::Float(*f))),
+                                _ => Err(format!("cannot cast {:?} to {ty}", var)),
+                            }
+                        } else {
+                            Err(format!("cannot cast {:?} to {ty}", var))
+                        }
+                    }
+                    _ => Ok(Expression::Atomic(Value::Null)),
+                }
+            }
             Expression::Operation(op) => op.eval(data),
             Expression::Comparison(comp) => comp.eval(data),
             Expression::Atomic(_) => Ok(self.to_owned()),
@@ -229,6 +266,49 @@ impl Expression {
                         _ => Err(format!("Cannot compare {:?} with {:?}", haystack, needle)),
                     }
                 }
+                "substring" => {
+                    if arguments.len() < 2 {
+                        return Err(format!(
+                            "Substring function needs at least two arguments. {} were given",
+                            arguments.len()
+                        ));
+                    }
+                    let input = arguments[0].eval(data)?;
+                    if arguments.len() == 2 {
+                        let start = arguments[1].eval(data)?;
+                        if let (
+                            Expression::Atomic(Value::String(s)),
+                            Expression::Atomic(Value::Int(start)),
+                        ) = (&input, &start)
+                        {
+                            let slice = &s[*start as usize..];
+                            Ok(Expression::Atomic(Value::String(slice.to_string())))
+                        } else {
+                            return Err(format!(
+                                "Substring arguments were wrong. ({:?}, {:?}) was given",
+                                input, start
+                            ));
+                        }
+                    } else {
+                        let start = arguments[1].eval(data)?;
+                        let end = arguments[2].eval(data)?;
+                        if let (
+                            Expression::Atomic(Value::String(s)),
+                            Expression::Atomic(Value::Int(start)),
+                            Expression::Atomic(Value::Int(end)),
+                        ) = (&input, &start, &end)
+                        {
+                            let slice = &s[*start as usize..*end as usize];
+                            Ok(Expression::Atomic(Value::String(slice.to_string())))
+                        } else {
+                            return Err(format!(
+                                "Substring arguments were wrong. ({:?}, {:?}) was given",
+                                input, start
+                            ));
+                        }
+                    }
+                }
+
                 "contains" => {
                     if !arguments.len() == 2 {
                         return Err(format!(
@@ -701,8 +781,8 @@ impl Operation {
                 data,
                 |left, right| left * right,
             ),
-            Operation::PlusTime(left, right) => todo!(),
-            Operation::MinusTime(left, right) => todo!(),
+            Operation::PlusTime(_left, _right) => todo!(),
+            Operation::MinusTime(_left, _right) => todo!(),
             Operation::And(left, right) => {
                 let left = left.eval(data)?;
                 let right = right.eval(data)?;

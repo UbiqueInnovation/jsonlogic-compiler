@@ -1,4 +1,4 @@
-# Jsonlogic-Compiler
+# Possum (Procedure for operating on semantically structured user metadata)
 
 This repository provides means of compiling a simple "javascript-like" language to [json-logic](https://jsonlogic.com/). We started this project to simplify writing of [CertLogic](https://github.com/eu-digital-green-certificates/dgc-certlogic-android) rules for the verification of [GreenCertificates](https://github.com/eu-digital-green-certificates/dgc-overview). Since reading and reviewing json-logic gets quite tedious when the rule complexity increases, something easier to read was needed.
 
